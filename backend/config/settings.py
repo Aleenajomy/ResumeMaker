@@ -23,6 +23,9 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'accounts',
+    'profiles',
+    'certifications',
     'api',
 ]
 
@@ -88,6 +91,8 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+AUTH_USER_MODEL = 'accounts.User'
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -110,7 +115,7 @@ OPENAI_API_KEY = GROQ_API_KEY or os.getenv('OPENAI_API_KEY')
 OPENAI_BASE_URL = os.getenv('OPENAI_BASE_URL')
 if not OPENAI_BASE_URL and GROQ_API_KEY:
     OPENAI_BASE_URL = 'https://api.groq.com/openai/v1'
-AI_MODEL = os.getenv('AI_MODEL', 'llama-3.1-70b-versatile' if GROQ_API_KEY else 'gpt-4o-mini')
+AI_MODEL = os.getenv('AI_MODEL', 'llama-3.3-70b-versatile' if GROQ_API_KEY else 'gpt-4o-mini')
 
 if not OPENAI_API_KEY:
     raise ValueError('OPENAI_API_KEY or GROQ_API_KEY environment variable is required')
@@ -166,13 +171,13 @@ LOGGING = {
 }
 
 # Rate Limiting
-REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = [
-    'rest_framework.throttling.AnonRateThrottle',
-    'rest_framework.throttling.UserRateThrottle',
-]
-REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
-    'anon': '10/hour',
-    'user': '100/hour',
-}
+# REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = [
+#     'rest_framework.throttling.AnonRateThrottle',
+#     'rest_framework.throttling.UserRateThrottle',
+# ]
+# REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
+#     'anon': '10/hour',
+#     'user': '100/hour',
+# }
 REST_FRAMEWORK['DEFAULT_PAGINATION_CLASS'] = 'rest_framework.pagination.PageNumberPagination'
 REST_FRAMEWORK['PAGE_SIZE'] = 10

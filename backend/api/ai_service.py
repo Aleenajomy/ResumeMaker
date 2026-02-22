@@ -1,6 +1,9 @@
 import json
 import logging
+import re
 import time
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 from django.conf import settings
 from openai import APIError, OpenAI, RateLimitError
 
@@ -13,59 +16,147 @@ if settings.OPENAI_BASE_URL:
 client = OpenAI(**client_kwargs)
 MODEL_NAME = settings.AI_MODEL
 
+DOCUMENT_SYSTEM_PROMPT = """
+You are a professional ATS resume optimizer.
+Return valid JSON only.
+Generate:
+1. tailored_resume_text
+2. cover_letter_text
+3. email_subject
+4. email_body
+5. ats_score (0-100 integer)
+6. changes_made (array of concise strings)
+Do not include markdown or code fences.
+"""
+
+LATEX_SECTION_SYSTEM_PROMPT = """
+You are a LaTeX resume optimization engine.
+Rules:
+- Keep all LaTeX commands and structure intact.
+- Do not add, remove, or rename any \\section headings.
+- Do not modify Experience, Projects, or Education content.
+- Modify only Summary and Skills section wording.
+- Keep command/layout structure in those sections intact.
+- Do not include markdown code fences.
+Return strict JSON only with keys:
+summary, skills, changes_made.
+If a section was missing in input, return an empty string for that key.
+"""
+
+APPLICATION_DOCS_SYSTEM_PROMPT = """
+You are a professional job application writer.
+Return valid JSON only with keys:
+cover_letter_text, email_subject, email_body.
+Do not include markdown or code fences.
+"""
+
+MAX_RESUME_CHARS = 15000
+MAX_JOB_DESCRIPTION_CHARS = 12000
+MAX_REQUIREMENTS_CHARS = 4000
+MAX_LATEX_SECTION_CHARS = 4500
+
+LATEX_SECTION_ALIASES = {
+    'summary': ['summary', 'professional summary', 'profile', 'objective'],
+    'experience': ['experience', 'work experience', 'professional experience', 'employment'],
+    'projects': ['projects', 'project', 'project experience', 'personal projects'],
+    'skills': ['skills', 'technical skills', 'core skills', 'tech stack'],
+    'certifications': ['certifications', 'certification', 'licenses', 'licenses and certifications'],
+}
+
+STOPWORDS = {
+    'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'has', 'have', 'in',
+    'is', 'it', 'its', 'of', 'on', 'or', 'that', 'the', 'to', 'was', 'were', 'will', 'with',
+    'you', 'your', 'their', 'they', 'this', 'those', 'these', 'we', 'our', 'us', 'role',
+    'job', 'work', 'team', 'skills', 'experience', 'years', 'required', 'preferred',
+}
+
+
 class AIService:
     @staticmethod
-    def _call_openai_with_retry(prompt, temperature=0.3, max_retries=3):
-        """Call OpenAI API with retry logic"""
+    def _truncate_text(value: str, max_chars: int) -> str:
+        if not value:
+            return ''
+        return value.strip()[:max_chars]
+
+    @staticmethod
+    def _extract_json_payload(content: str) -> Dict[str, Any]:
+        if not content:
+            raise ValueError("Empty response from AI service")
+
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            if '```json' in content:
+                json_str = content.split('```json', 1)[1].split('```', 1)[0].strip()
+                return json.loads(json_str)
+            if '```' in content:
+                json_str = content.split('```', 1)[1].split('```', 1)[0].strip()
+                return json.loads(json_str)
+            raise ValueError(f"Invalid JSON response from AI service: {content[:200]}")
+
+    @staticmethod
+    def _normalize_usage(usage: Any) -> Optional[Dict[str, int]]:
+        if not usage:
+            return None
+
+        return {
+            'prompt_tokens': int(getattr(usage, 'prompt_tokens', 0) or 0),
+            'completion_tokens': int(getattr(usage, 'completion_tokens', 0) or 0),
+            'total_tokens': int(getattr(usage, 'total_tokens', 0) or 0),
+        }
+
+    @staticmethod
+    def _call_openai_with_retry(
+        prompt: str,
+        temperature: float = 0.3,
+        max_retries: int = 3,
+        system_prompt: Optional[str] = None,
+        return_usage: bool = False,
+    ) -> Union[Dict[str, Any], Tuple[Dict[str, Any], Optional[Dict[str, int]]]]:
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
         for attempt in range(max_retries):
             try:
                 response = client.chat.completions.create(
                     model=MODEL_NAME,
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=messages,
                     temperature=temperature,
-                    timeout=30
+                    timeout=30,
                 )
                 content = response.choices[0].message.content
-                
-                # Try to parse JSON
-                try:
-                    return json.loads(content)
-                except json.JSONDecodeError:
-                    # Try to extract JSON from markdown code blocks
-                    if '```json' in content:
-                        json_str = content.split('```json')[1].split('```')[0].strip()
-                        return json.loads(json_str)
-                    elif '```' in content:
-                        json_str = content.split('```')[1].split('```')[0].strip()
-                        return json.loads(json_str)
-                    else:
-                        raise ValueError(f"Invalid JSON response from OpenAI: {content[:200]}")
-                        
+                payload = AIService._extract_json_payload(content)
+
+                if return_usage:
+                    return payload, AIService._normalize_usage(getattr(response, 'usage', None))
+                return payload
             except RateLimitError:
                 logger.warning(f"Rate limit hit, attempt {attempt + 1}/{max_retries}")
                 if attempt < max_retries - 1:
-                    time.sleep(2 ** attempt)  # Exponential backoff
+                    time.sleep(2 ** attempt)
                 else:
-                    raise Exception("OpenAI rate limit exceeded. Please try again later.")
-            except APIError as e:
-                logger.error(f"OpenAI API error: {str(e)}")
-                raise Exception(f"AI service error: {str(e)}")
-            except Exception as e:
-                logger.error(f"Unexpected error calling OpenAI: {str(e)}")
+                    raise Exception("AI rate limit exceeded. Please try again later.")
+            except APIError as exc:
+                logger.error(f"AI provider API error: {str(exc)}")
+                raise Exception(f"AI service error: {str(exc)}")
+            except Exception as exc:
+                logger.error(f"Unexpected error calling AI provider: {str(exc)}")
                 if attempt < max_retries - 1:
                     time.sleep(1)
                 else:
-                    raise Exception(f"Failed to process request: {str(e)}")
-        
+                    raise Exception(f"Failed to process request: {str(exc)}")
+
         raise Exception("Failed to get response from AI service")
 
     @staticmethod
-    def extract_keywords(job_description):
-        """Extract keywords from job description"""
+    def extract_keywords(job_description: str) -> Dict[str, Any]:
+        """Extract keywords from job description."""
         if not job_description or len(job_description.strip()) < 20:
             raise ValueError("Job description is too short")
-            
-        prompt = f"""Extract technical skills, tools, frameworks, soft skills, and action verbs 
+
+        prompt = f"""Extract technical skills, tools, frameworks, soft skills, and action verbs
 from the following job description. Return ONLY a JSON object with these keys:
 - technical_skills: list of technical skills
 - tools: list of tools and technologies
@@ -76,17 +167,18 @@ Job Description:
 {job_description}"""
 
         try:
-            return AIService._call_openai_with_retry(prompt, temperature=0.3)
-        except Exception as e:
-            logger.error(f"Error extracting keywords: {str(e)}")
+            result = AIService._call_openai_with_retry(prompt, temperature=0.3)
+            return result if isinstance(result, dict) else {}
+        except Exception as exc:
+            logger.error(f"Error extracting keywords: {str(exc)}")
             raise
 
     @staticmethod
-    def parse_resume(resume_text):
-        """Parse resume text into structured data"""
+    def parse_resume(resume_text: str) -> Dict[str, Any]:
+        """Parse resume text into structured data."""
         if not resume_text or len(resume_text.strip()) < 50:
             raise ValueError("Resume text is too short or empty")
-            
+
         prompt = f"""Parse the following resume and extract:
 - name
 - email
@@ -101,54 +193,55 @@ Resume:
 {resume_text}"""
 
         try:
-            return AIService._call_openai_with_retry(prompt, temperature=0.3)
-        except Exception as e:
-            logger.error(f"Error parsing resume: {str(e)}")
+            result = AIService._call_openai_with_retry(prompt, temperature=0.3)
+            return result if isinstance(result, dict) else {}
+        except Exception as exc:
+            logger.error(f"Error parsing resume: {str(exc)}")
             raise
 
     @staticmethod
-    def calculate_ats_score(resume_keywords, jd_keywords):
-        """Calculate ATS compatibility score"""
+    def calculate_ats_score(resume_keywords: Dict[str, Any], jd_keywords: Dict[str, Any]) -> Dict[str, Any]:
+        """Calculate ATS compatibility score from parsed resume and extracted JD keywords."""
         try:
             if not isinstance(resume_keywords, dict) or not isinstance(jd_keywords, dict):
                 raise ValueError("Invalid keyword format")
-                
-            all_jd_keywords = []
+
+            all_jd_keywords: List[str] = []
             for key in ['technical_skills', 'tools', 'soft_skills']:
-                if key in jd_keywords and isinstance(jd_keywords[key], list):
-                    all_jd_keywords.extend([k.lower().strip() for k in jd_keywords[key] if k])
-            
+                values = jd_keywords.get(key, [])
+                if isinstance(values, list):
+                    all_jd_keywords.extend([str(value).lower().strip() for value in values if value])
+
             if not all_jd_keywords:
                 return {'score': 0, 'matched': [], 'missing': []}
-            
+
             resume_skills = resume_keywords.get('skills', [])
             if not isinstance(resume_skills, list):
                 resume_skills = []
-                
-            resume_keywords_lower = [k.lower().strip() for k in resume_skills if k]
-            
-            matched = list(set([k for k in all_jd_keywords if k in resume_keywords_lower]))
-            missing = list(set([k for k in all_jd_keywords if k not in resume_keywords_lower]))
-            
+
+            resume_keywords_lower = [str(value).lower().strip() for value in resume_skills if value]
+
+            matched = list({key for key in all_jd_keywords if key in resume_keywords_lower})
+            missing = list({key for key in all_jd_keywords if key not in resume_keywords_lower})
             score = (len(matched) / len(all_jd_keywords) * 100) if all_jd_keywords else 0
-            
+
             return {
                 'score': round(score, 2),
                 'matched': matched,
-                'missing': missing
+                'missing': missing,
             }
-        except Exception as e:
-            logger.error(f"Error calculating ATS score: {str(e)}")
+        except Exception as exc:
+            logger.error(f"Error calculating ATS score: {str(exc)}")
             return {'score': 0, 'matched': [], 'missing': []}
 
     @staticmethod
-    def optimize_resume(resume_data, job_description):
-        """Optimize resume for job description"""
+    def optimize_resume(resume_data: Dict[str, Any], job_description: str) -> Dict[str, Any]:
+        """Optimize resume for a given job description."""
         if not isinstance(resume_data, dict):
             raise ValueError("Invalid resume data format")
         if not job_description or len(job_description.strip()) < 20:
             raise ValueError("Job description is too short")
-            
+
         prompt = f"""Rewrite the following resume tailored for this job description.
 Requirements:
 - Keep ATS-friendly formatting (no tables, no graphics)
@@ -164,31 +257,32 @@ Resume Data:
 {json.dumps(resume_data, indent=2)}"""
 
         try:
-            return AIService._call_openai_with_retry(prompt, temperature=0.5)
-        except Exception as e:
-            logger.error(f"Error optimizing resume: {str(e)}")
+            result = AIService._call_openai_with_retry(prompt, temperature=0.5)
+            return result if isinstance(result, dict) else {}
+        except Exception as exc:
+            logger.error(f"Error optimizing resume: {str(exc)}")
             raise
 
     @staticmethod
-    def generate_cover_letter(resume_data, job_description, job_title):
-        """Generate cover letter"""
+    def generate_cover_letter(resume_data: Dict[str, Any], job_description: str, job_title: str) -> str:
+        """Generate cover letter in plain text."""
         if not isinstance(resume_data, dict):
             raise ValueError("Invalid resume data format")
         if not job_description or len(job_description.strip()) < 20:
             raise ValueError("Job description is too short")
-            
+
         prompt = f"""Generate a professional job-specific cover letter.
 Requirements:
 - Use the resume and job description
 - Keep it concise (3-4 paragraphs)
 - Professional and formal tone
 - Address the job title: {job_title}
-- Return plain text, not JSON
+- Return plain text only
 
 Resume:
 {json.dumps(resume_data, indent=2)}
 
-        Job Description:
+Job Description:
 {job_description}"""
 
         try:
@@ -196,9 +290,486 @@ Resume:
                 model=MODEL_NAME,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
-                timeout=30
+                timeout=30,
             )
-            return response.choices[0].message.content
-        except Exception as e:
-            logger.error(f"Error generating cover letter: {str(e)}")
-            raise Exception(f"Failed to generate cover letter: {str(e)}")
+            content = response.choices[0].message.content
+            return content.strip() if content else ''
+        except Exception as exc:
+            logger.error(f"Error generating cover letter: {str(exc)}")
+            raise Exception(f"Failed to generate cover letter: {str(exc)}")
+
+    @staticmethod
+    def _validate_generated_document_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(payload, dict):
+            raise ValueError("AI response format is invalid")
+
+        tailored_resume_text = str(payload.get('tailored_resume_text', '')).strip()
+        cover_letter_text = str(payload.get('cover_letter_text', '')).strip()
+        email_subject = str(payload.get('email_subject', '')).strip()
+        email_body = str(payload.get('email_body', '')).strip()
+
+        if not tailored_resume_text:
+            raise ValueError("AI response missing tailored_resume_text")
+        if not cover_letter_text:
+            raise ValueError("AI response missing cover_letter_text")
+        if not email_subject:
+            raise ValueError("AI response missing email_subject")
+        if not email_body:
+            raise ValueError("AI response missing email_body")
+
+        raw_score = payload.get('ats_score', 0)
+        try:
+            ats_score = int(raw_score)
+        except (TypeError, ValueError):
+            ats_score = 0
+        ats_score = max(0, min(100, ats_score))
+
+        raw_changes = payload.get('changes_made', [])
+        if not isinstance(raw_changes, list):
+            raw_changes = []
+        changes_made = [str(item).strip() for item in raw_changes if str(item).strip()]
+
+        return {
+            'tailored_resume_text': tailored_resume_text,
+            'cover_letter_text': cover_letter_text,
+            'email_subject': email_subject[:255],
+            'email_body': email_body,
+            'ats_score': ats_score,
+            'changes_made': changes_made,
+        }
+
+    @staticmethod
+    def generate_job_documents(user_profile: Dict[str, Any], resume_text: str, job_data: Dict[str, Any]) -> Dict[str, Any]:
+        if not resume_text or len(resume_text.strip()) < 50:
+            raise ValueError("Resume content is too short")
+        if not isinstance(job_data, dict):
+            raise ValueError("Job data is invalid")
+
+        truncated_resume = AIService._truncate_text(resume_text, MAX_RESUME_CHARS)
+        truncated_job_description = AIService._truncate_text(
+            str(job_data.get('job_description', '')),
+            MAX_JOB_DESCRIPTION_CHARS,
+        )
+        truncated_requirements = AIService._truncate_text(
+            str(job_data.get('requirements', '')),
+            MAX_REQUIREMENTS_CHARS,
+        )
+
+        prompt = f"""User Profile:
+{json.dumps(user_profile, indent=2)}
+
+Original Resume:
+{truncated_resume}
+
+Job Title: {job_data.get('job_title', '')}
+Company: {job_data.get('company_name', '')}
+Job Description:
+{truncated_job_description}
+
+Requirements:
+{truncated_requirements}
+
+Return JSON with this exact schema:
+{{
+  "tailored_resume_text": "string",
+  "cover_letter_text": "string",
+  "email_subject": "string",
+  "email_body": "string",
+  "ats_score": 0,
+  "changes_made": ["string"]
+}}"""
+
+        payload, usage = AIService._call_openai_with_retry(
+            prompt=prompt,
+            temperature=0.4,
+            system_prompt=DOCUMENT_SYSTEM_PROMPT,
+            return_usage=True,
+        )
+
+        validated = AIService._validate_generated_document_payload(payload)
+        validated['token_usage'] = usage
+        return validated
+
+    @staticmethod
+    def _validate_application_docs_payload(payload: Dict[str, Any]) -> Dict[str, str]:
+        if not isinstance(payload, dict):
+            raise ValueError("AI response format is invalid")
+
+        cover_letter_text = str(payload.get('cover_letter_text', '')).strip()
+        email_subject = str(payload.get('email_subject', '')).strip()
+        email_body = str(payload.get('email_body', '')).strip()
+
+        if not cover_letter_text:
+            raise ValueError("AI response missing cover_letter_text")
+        if not email_subject:
+            raise ValueError("AI response missing email_subject")
+        if not email_body:
+            raise ValueError("AI response missing email_body")
+
+        return {
+            'cover_letter_text': cover_letter_text,
+            'email_subject': email_subject[:255],
+            'email_body': email_body,
+        }
+
+    @staticmethod
+    def generate_application_documents(
+        user_profile: Dict[str, Any],
+        tailored_resume_text: str,
+        job_data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if not tailored_resume_text or len(tailored_resume_text.strip()) < 30:
+            raise ValueError("Tailored resume content is too short")
+        if not isinstance(job_data, dict):
+            raise ValueError("Job data is invalid")
+
+        prompt = f"""User Profile:
+{json.dumps(user_profile, indent=2)}
+
+Tailored Resume:
+{AIService._truncate_text(tailored_resume_text, MAX_RESUME_CHARS)}
+
+Job Title: {job_data.get('job_title', '')}
+Company: {job_data.get('company_name', '')}
+Job Description:
+{AIService._truncate_text(str(job_data.get('job_description', '')), MAX_JOB_DESCRIPTION_CHARS)}
+
+Requirements:
+{AIService._truncate_text(str(job_data.get('requirements', '')), MAX_REQUIREMENTS_CHARS)}
+
+Return JSON with this exact schema:
+{{
+  "cover_letter_text": "string",
+  "email_subject": "string",
+  "email_body": "string"
+}}"""
+
+        payload, usage = AIService._call_openai_with_retry(
+            prompt=prompt,
+            temperature=0.4,
+            system_prompt=APPLICATION_DOCS_SYSTEM_PROMPT,
+            return_usage=True,
+        )
+
+        validated = AIService._validate_application_docs_payload(payload)
+        validated['token_usage'] = usage
+        return validated
+
+    @staticmethod
+    def _normalize_latex_section_title(title: str) -> str:
+        lowered = (title or '').lower()
+        lowered = re.sub(r'[^a-z0-9\s]+', ' ', lowered)
+        lowered = re.sub(r'\s+', ' ', lowered).strip()
+        return lowered
+
+    @staticmethod
+    def _canonical_latex_section_key(title: str) -> Optional[str]:
+        normalized = AIService._normalize_latex_section_title(title)
+        if not normalized:
+            return None
+
+        for key, aliases in LATEX_SECTION_ALIASES.items():
+            for alias in aliases:
+                alias_normalized = AIService._normalize_latex_section_title(alias)
+                if (
+                    normalized == alias_normalized
+                    or normalized.startswith(alias_normalized)
+                    or alias_normalized in normalized
+                ):
+                    return key
+        return None
+
+    @staticmethod
+    def extract_latex_sections(latex_text: str) -> Dict[str, Dict[str, Any]]:
+        if not latex_text:
+            return {}
+
+        section_matches = list(re.finditer(r'\\section\*?\{([^{}]+)\}', latex_text))
+        if not section_matches:
+            return {}
+
+        end_document_match = re.search(r'\\end\{document\}', latex_text)
+        final_content_end = end_document_match.start() if end_document_match else len(latex_text)
+
+        sections: Dict[str, Dict[str, Any]] = {}
+        for index, match in enumerate(section_matches):
+            section_title = (match.group(1) or '').strip()
+            section_key = AIService._canonical_latex_section_key(section_title)
+            if not section_key or section_key in sections:
+                continue
+
+            content_start = match.end()
+            content_end = (
+                section_matches[index + 1].start()
+                if index + 1 < len(section_matches)
+                else final_content_end
+            )
+
+            sections[section_key] = {
+                'title': section_title,
+                'start': content_start,
+                'end': content_end,
+                'content': latex_text[content_start:content_end].strip(),
+            }
+
+        return sections
+
+    @staticmethod
+    def _sanitize_latex_section_update(updated_content: str) -> str:
+        cleaned = (updated_content or '').strip()
+        if not cleaned:
+            return ''
+
+        if re.search(r'\\section\*?\{', cleaned):
+            return ''
+        if '\\begin{document}' in cleaned or '\\end{document}' in cleaned:
+            return ''
+
+        return cleaned
+
+    @staticmethod
+    def apply_latex_section_updates(
+        latex_text: str,
+        section_map: Dict[str, Dict[str, Any]],
+        section_updates: Dict[str, str],
+    ) -> str:
+        if not section_map:
+            return latex_text
+
+        updated_latex = latex_text
+        ordered_sections = sorted(
+            section_map.items(),
+            key=lambda item: int(item[1]['start']),
+            reverse=True,
+        )
+
+        for section_key, metadata in ordered_sections:
+            replacement = AIService._sanitize_latex_section_update(section_updates.get(section_key, ''))
+            if not replacement:
+                continue
+
+            start = int(metadata['start'])
+            end = int(metadata['end'])
+            replacement_block = "\n" + replacement + "\n"
+            updated_latex = updated_latex[:start] + replacement_block + updated_latex[end:]
+
+        return updated_latex
+
+    @staticmethod
+    def latex_to_plain_text(latex_text: str) -> str:
+        if not latex_text:
+            return ''
+
+        text = re.sub(r'(?<!\\)%.*', ' ', latex_text)
+        text = re.sub(r'\\begin\{[^}]+\}', ' ', text)
+        text = re.sub(r'\\end\{[^}]+\}', ' ', text)
+
+        for _ in range(4):
+            text = re.sub(
+                r'\\[a-zA-Z]+\*?(?:\[[^\]]*\])?\{([^{}]*)\}',
+                r' \1 ',
+                text,
+            )
+
+        text = re.sub(r'\\[a-zA-Z]+\*?(?:\[[^\]]*\])?', ' ', text)
+        text = text.replace('{', ' ').replace('}', ' ')
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
+
+    @staticmethod
+    def optimize_latex_resume(
+        latex_text: str,
+        job_data: Dict[str, Any],
+        user_profile: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if not latex_text or len(latex_text.strip()) < 30:
+            raise ValueError("LaTeX content is too short")
+        if not isinstance(job_data, dict):
+            raise ValueError("Job data is invalid")
+
+        section_map = AIService.extract_latex_sections(latex_text)
+        if not section_map:
+            raise ValueError("Unable to detect editable LaTeX sections.")
+
+        summary_content = AIService._truncate_text(
+            section_map.get('summary', {}).get('content', ''),
+            MAX_LATEX_SECTION_CHARS,
+        )
+        skills_content = AIService._truncate_text(
+            section_map.get('skills', {}).get('content', ''),
+            MAX_LATEX_SECTION_CHARS,
+        )
+
+        if not summary_content and not skills_content:
+            raise ValueError("Summary or Skills section not found in LaTeX resume.")
+
+        prompt = f"""User Profile:
+{json.dumps(user_profile, indent=2)}
+
+Job Title: {job_data.get('job_title', '')}
+Company: {job_data.get('company_name', '')}
+Job Description:
+{AIService._truncate_text(str(job_data.get('job_description', '')), MAX_JOB_DESCRIPTION_CHARS)}
+
+Requirements:
+{AIService._truncate_text(str(job_data.get('requirements', '')), MAX_REQUIREMENTS_CHARS)}
+
+Current Summary Section:
+{summary_content}
+
+Current Skills Section:
+{skills_content}
+
+Return JSON with this exact schema:
+{{
+  "summary": "string",
+  "skills": "string",
+  "changes_made": ["string"]
+}}"""
+
+        payload, usage = AIService._call_openai_with_retry(
+            prompt=prompt,
+            temperature=0.35,
+            system_prompt=LATEX_SECTION_SYSTEM_PROMPT,
+            return_usage=True,
+        )
+
+        if not isinstance(payload, dict):
+            raise ValueError("Invalid LaTeX optimization response format")
+
+        section_updates: Dict[str, str] = {
+            'summary': str(payload.get('summary', '')).strip(),
+            'skills': str(payload.get('skills', '')).strip(),
+        }
+
+        updated_latex = AIService.apply_latex_section_updates(
+            latex_text=latex_text,
+            section_map=section_map,
+            section_updates=section_updates,
+        )
+
+        raw_changes = payload.get('changes_made', [])
+        if not isinstance(raw_changes, list):
+            raw_changes = []
+        changes_made = [str(item).strip() for item in raw_changes if str(item).strip()]
+
+        return {
+            'updated_latex': updated_latex,
+            'changes_made': changes_made,
+            'sections_found': list(section_map.keys()),
+            'token_usage': usage,
+        }
+
+    @staticmethod
+    def _tokenize_keywords(text: str) -> List[str]:
+        words = re.findall(r"[a-zA-Z][a-zA-Z0-9+#.\-]{2,}", text.lower())
+        return [word for word in words if word not in STOPWORDS]
+
+    @staticmethod
+    def calculate_ats_score_from_text(job_description: str, tailored_resume_text: str) -> Dict[str, Any]:
+        if not job_description:
+            return {'score': 0, 'matched': [], 'missing': []}
+
+        jd_tokens = AIService._tokenize_keywords(job_description)
+        if not jd_tokens:
+            return {'score': 0, 'matched': [], 'missing': []}
+
+        frequency: Dict[str, int] = {}
+        for token in jd_tokens:
+            frequency[token] = frequency.get(token, 0) + 1
+
+        prioritized_keywords = sorted(
+            frequency.keys(),
+            key=lambda token: frequency[token],
+            reverse=True,
+        )[:40]
+
+        resume_token_set = set(AIService._tokenize_keywords(tailored_resume_text))
+        matched = sorted([token for token in prioritized_keywords if token in resume_token_set])
+        missing = sorted([token for token in prioritized_keywords if token not in resume_token_set])
+
+        score = round((len(matched) / len(prioritized_keywords)) * 100) if prioritized_keywords else 0
+        return {
+            'score': max(0, min(100, score)),
+            'matched': matched,
+            'missing': missing,
+        }
+
+    @staticmethod
+    def generate_diff(original_text: str, updated_text: str) -> List[Dict[str, str]]:
+        import difflib
+
+        original_words = (original_text or '').split()
+        updated_words = (updated_text or '').split()
+
+        diff_result: List[Dict[str, str]] = []
+        for token in difflib.ndiff(original_words, updated_words):
+            if token.startswith('+ '):
+                diff_result.append({'type': 'added', 'word': token[2:]})
+            elif token.startswith('- '):
+                diff_result.append({'type': 'removed', 'word': token[2:]})
+            else:
+                diff_result.append({'type': 'unchanged', 'word': token[2:]})
+
+        return diff_result
+
+    @staticmethod
+    def _escape_latex_text(value: str) -> str:
+        text = value or ''
+        replacements = [
+            ('&', r'\&'),
+            ('%', r'\%'),
+            ('$', r'\$'),
+            ('#', r'\#'),
+            ('_', r'\_'),
+            ('{', r'\{'),
+            ('}', r'\}'),
+        ]
+        for src, dst in replacements:
+            text = re.sub(rf'(?<!\\){re.escape(src)}', dst, text)
+        return text
+
+    @staticmethod
+    def select_relevant_certifications(
+        job_description: str,
+        certifications: List[Dict[str, str]],
+        max_items: int = 4,
+    ) -> List[Dict[str, str]]:
+        if not certifications:
+            return []
+
+        job_tokens = set(AIService._tokenize_keywords(job_description))
+        scored: List[Tuple[int, int, Dict[str, str]]] = []
+        for index, cert in enumerate(certifications):
+            title = str(cert.get('title', '')).strip()
+            issuer = str(cert.get('issuer', '')).strip()
+            combined = f"{title} {issuer}".strip()
+            cert_tokens = set(AIService._tokenize_keywords(combined))
+
+            overlap = len(job_tokens.intersection(cert_tokens)) if job_tokens else 0
+            scored.append((overlap, -index, cert))
+
+        matched = [item[2] for item in sorted(scored, key=lambda x: (x[0], x[1]), reverse=True) if item[0] > 0]
+        if matched:
+            return matched[:max_items]
+
+        return certifications[:max_items]
+
+    @staticmethod
+    def build_latex_certifications_section(certifications: List[Dict[str, str]]) -> str:
+        if not certifications:
+            return ''
+
+        lines = [r'\resumeItemListStart']
+        for cert in certifications:
+            title = AIService._escape_latex_text(str(cert.get('title', '')).strip())
+            issuer = AIService._escape_latex_text(str(cert.get('issuer', '')).strip())
+            if not title:
+                continue
+            content = f"{title} ({issuer})" if issuer else title
+            lines.append(rf'\resumeItem{{{content}}}')
+        lines.append(r'\resumeItemListEnd')
+
+        if len(lines) <= 2:
+            return ''
+        return "\n".join(lines)

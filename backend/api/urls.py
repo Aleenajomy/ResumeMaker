@@ -5,7 +5,10 @@ from .views import (
     JobDescriptionViewSet,
     OptimizedResumeViewSet,
     CoverLetterViewSet,
-    UserRegistrationViewSet
+    UserRegistrationViewSet,
+    JobViewSet,
+    GeneratedDocumentViewSet,
+    ResumeOptimizerViewSet,
 )
 
 router = DefaultRouter()
@@ -14,6 +17,9 @@ router.register(r'job-descriptions', JobDescriptionViewSet, basename='job-descri
 router.register(r'optimized-resumes', OptimizedResumeViewSet, basename='optimized-resume')
 router.register(r'cover-letters', CoverLetterViewSet, basename='cover-letter')
 router.register(r'auth', UserRegistrationViewSet, basename='auth')
+router.register(r'jobs', JobViewSet, basename='job')
+router.register(r'generated-documents', GeneratedDocumentViewSet, basename='generated-document')
+router.register(r'resume-optimizer', ResumeOptimizerViewSet, basename='resume-optimizer')
 
 urlpatterns = [
     path('', include(router.urls)),

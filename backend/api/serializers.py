@@ -1,6 +1,13 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
-from .models import Resume, JobDescription, OptimizedResume, CoverLetter
+from accounts.models import User
+from .models import (
+    Resume,
+    JobDescription,
+    OptimizedResume,
+    CoverLetter,
+    Job,
+    GeneratedDocument,
+)
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -28,18 +35,36 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 class ResumeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Resume
-        fields = ['id', 'original_file', 'parsed_content', 'created_at', 'updated_at']
+        fields = ['id', 'original_file', 'latex_file', 'parsed_content', 'created_at', 'updated_at']
         read_only_fields = ['parsed_content', 'created_at', 'updated_at']
 
     def validate_original_file(self, value):
-        if value.size > 10 * 1024 * 1024:  # 10MB
+        if value and value.size > 10 * 1024 * 1024:  # 10MB
             raise serializers.ValidationError("File size cannot exceed 10MB")
         return value
+
+    def validate_latex_file(self, value):
+        if value and value.size > 10 * 1024 * 1024:
+            raise serializers.ValidationError("File size cannot exceed 10MB")
+        return value
+
+    def validate(self, attrs):
+        original_file = attrs.get('original_file')
+        latex_file = attrs.get('latex_file')
+
+        if self.instance:
+            original_file = original_file or getattr(self.instance, 'original_file', None)
+            latex_file = latex_file or getattr(self.instance, 'latex_file', None)
+
+        if not original_file and not latex_file:
+            raise serializers.ValidationError("Provide at least one resume file (PDF/DOCX/TXT or TEX).")
+
+        return attrs
 
 class ResumeListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Resume
-        fields = ['id', 'created_at', 'updated_at']
+        fields = ['id', 'original_file', 'latex_file', 'created_at', 'updated_at']
 
 class JobDescriptionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -90,3 +115,127 @@ class CoverLetterListSerializer(serializers.ModelSerializer):
     class Meta:
         model = CoverLetter
         fields = ['id', 'created_at']
+
+
+class JobSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Job
+        fields = [
+            'id',
+            'source_resume',
+            'company_name',
+            'job_title',
+            'job_description',
+            'requirements',
+            'created_at',
+        ]
+        read_only_fields = ['created_at']
+
+    def validate_company_name(self, value):
+        if len(value.strip()) < 2:
+            raise serializers.ValidationError("Company name must be at least 2 characters")
+        return value
+
+    def validate_job_title(self, value):
+        if len(value.strip()) < 2:
+            raise serializers.ValidationError("Job title must be at least 2 characters")
+        return value
+
+    def validate_job_description(self, value):
+        if len(value.strip()) < 50:
+            raise serializers.ValidationError("Job description must be at least 50 characters")
+        return value
+
+
+class JobListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Job
+        fields = ['id', 'company_name', 'job_title', 'created_at']
+
+
+class GeneratedDocumentSerializer(serializers.ModelSerializer):
+    job = JobSerializer(read_only=True)
+
+    class Meta:
+        model = GeneratedDocument
+        fields = [
+            'id',
+            'job',
+            'source_resume',
+            'tailored_resume_text',
+            'cover_letter_text',
+            'email_subject',
+            'email_body',
+            'ats_score',
+            'matched_keywords',
+            'missing_keywords',
+            'resume_pdf',
+            'tailored_resume_tex',
+            'is_latex_based',
+            'cover_letter_pdf',
+            'diff_json',
+            'ai_changes',
+            'token_usage',
+            'created_at',
+        ]
+        read_only_fields = [
+            'job',
+            'source_resume',
+            'tailored_resume_text',
+            'cover_letter_text',
+            'email_subject',
+            'email_body',
+            'ats_score',
+            'matched_keywords',
+            'missing_keywords',
+            'resume_pdf',
+            'tailored_resume_tex',
+            'is_latex_based',
+            'cover_letter_pdf',
+            'diff_json',
+            'ai_changes',
+            'token_usage',
+            'created_at',
+        ]
+
+
+class GeneratedDocumentListSerializer(serializers.ModelSerializer):
+    job_title = serializers.CharField(source='job.job_title', read_only=True)
+    company_name = serializers.CharField(source='job.company_name', read_only=True)
+
+    class Meta:
+        model = GeneratedDocument
+        fields = ['id', 'job_title', 'company_name', 'ats_score', 'created_at']
+
+
+class ResumeOptimizerRequestSerializer(serializers.Serializer):
+    resume_id = serializers.IntegerField(required=False)
+    resume_file = serializers.FileField(required=False, allow_null=True, write_only=True)
+    company_name = serializers.CharField(max_length=255)
+    job_title = serializers.CharField(max_length=255)
+    job_description = serializers.CharField()
+    requirements = serializers.CharField(required=False, allow_blank=True, default='')
+
+    def validate_company_name(self, value):
+        if len(value.strip()) < 2:
+            raise serializers.ValidationError("Company name must be at least 2 characters")
+        return value
+
+    def validate_job_title(self, value):
+        if len(value.strip()) < 2:
+            raise serializers.ValidationError("Job title must be at least 2 characters")
+        return value
+
+    def validate_job_description(self, value):
+        if len(value.strip()) < 50:
+            raise serializers.ValidationError("Job description must be at least 50 characters")
+        return value
+
+    def validate_resume_file(self, value):
+        if value and value.size > 10 * 1024 * 1024:
+            raise serializers.ValidationError("Resume file size cannot exceed 10MB")
+        if value:
+            filename = value.name.lower()
+            if not filename.endswith(('.pdf', '.docx', '.txt', '.tex')):
+                raise serializers.ValidationError("Unsupported file format. Use PDF, DOCX, TXT, or TEX.")
+        return value

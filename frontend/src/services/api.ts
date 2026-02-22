@@ -31,7 +31,6 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config as (typeof error.config & { _retry?: boolean }) | undefined;
 
-    // Handle 401 errors (token expired)
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
 
@@ -52,7 +51,6 @@ api.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${access}`;
         return api(originalRequest);
       } catch (refreshError) {
-        // Refresh failed, logout user
         clearTokens();
         window.location.href = '/login';
         return Promise.reject(refreshError);
@@ -85,10 +83,31 @@ export const authService = {
   },
 };
 
+export const profileService = {
+  get: () => api.get('/profile/me/'),
+  update: (data: any) => api.put('/profile/update_me/', data),
+};
+
+export const certificationService = {
+  list: () => api.get('/certifications/'),
+  create: (data: any) => api.post('/certifications/', data, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  update: (id: number, data: any) => api.put(`/certifications/${id}/`, data, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  delete: (id: number) => api.delete(`/certifications/${id}/`),
+};
+
 export const resumeService = {
   upload: async (file: File) => {
     const formData = new FormData();
-    formData.append('original_file', file);
+    const fileName = file.name.toLowerCase();
+    if (fileName.endsWith('.tex')) {
+      formData.append('latex_file', file);
+    } else {
+      formData.append('original_file', file);
+    }
     return api.post('/resumes/', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -96,6 +115,7 @@ export const resumeService = {
   
   list: () => api.get('/resumes/'),
   get: (id: number) => api.get(`/resumes/${id}/`),
+  delete: (id: number) => api.delete(`/resumes/${id}/`),
 };
 
 export const jobDescriptionService = {
@@ -132,6 +152,39 @@ export const coverLetterService = {
   
   list: () => api.get('/cover-letters/'),
   get: (id: number) => api.get(`/cover-letters/${id}/`),
+};
+
+export const resumeOptimizerService = {
+  generate: (data: {
+    companyName: string;
+    jobTitle: string;
+    jobDescription: string;
+    requirements?: string;
+    resumeId?: number;
+    resumeFile?: File | null;
+  }) => {
+    const formData = new FormData();
+    formData.append('company_name', data.companyName);
+    formData.append('job_title', data.jobTitle);
+    formData.append('job_description', data.jobDescription);
+    formData.append('requirements', data.requirements || '');
+
+    if (typeof data.resumeId === 'number') {
+      formData.append('resume_id', String(data.resumeId));
+    }
+    if (data.resumeFile) {
+      formData.append('resume_file', data.resumeFile);
+    }
+
+    return api.post('/resume-optimizer/generate/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+};
+
+export const generatedDocumentService = {
+  list: () => api.get('/generated-documents/'),
+  get: (id: number) => api.get(`/generated-documents/${id}/`),
 };
 
 export default api;

@@ -13,7 +13,17 @@ def parse_resume_task(resume_id):
     """Async task to parse resume"""
     try:
         resume = Resume.objects.get(id=resume_id)
-        text = PDFService.extract_text(resume.original_file)
+        if resume.latex_file:
+            text = PDFService.extract_text(resume.latex_file)
+            text = AIService.latex_to_plain_text(text)
+        elif resume.original_file:
+            text = PDFService.extract_text(resume.original_file)
+        else:
+            raise ValueError("Resume file is missing")
+
+        if not text or len(text.strip()) < 50:
+            raise ValueError("Resume content is too short to parse")
+
         parsed_content = AIService.parse_resume(text)
         resume.parsed_content = parsed_content
         resume.save()
