@@ -22,20 +22,26 @@ export const Home: React.FC = () => {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
 
   const [result, setResult] = useState<GeneratedDocument | null>(null);
-  const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null);
   const [showDiff, setShowDiff] = useState(false);
 
-  const latestResume = useMemo(() => (resumes.length > 0 ? resumes[0] : null), [resumes]);
+  const latexResumes = useMemo(
+    () => resumes.filter((resume) => Boolean(resume.latex_file)),
+    [resumes]
+  );
+  const latestLatexResume = useMemo(
+    () => (latexResumes.length > 0 ? latexResumes[0] : null),
+    [latexResumes]
+  );
 
   useEffect(() => {
     loadResumes();
   }, []);
 
   useEffect(() => {
-    if (!selectedResumeId && latestResume) {
-      setSelectedResumeId(latestResume.id);
+    if (!selectedResumeId && latestLatexResume) {
+      setSelectedResumeId(latestLatexResume.id);
     }
-  }, [latestResume, selectedResumeId]);
+  }, [latestLatexResume, selectedResumeId]);
 
   const loadResumes = async () => {
     setLoadingResumes(true);
@@ -89,7 +95,20 @@ export const Home: React.FC = () => {
     }
 
     if (!resumeFile && !selectedResumeId) {
-      alert('Upload a resume here or use one from your Dashboard');
+      alert('Upload a LaTeX (.tex) resume here or use a .tex resume from your Dashboard');
+      return;
+    }
+
+    if (!resumeFile && selectedResumeId) {
+      const selectedResume = resumes.find((resume) => resume.id === selectedResumeId);
+      if (!selectedResume?.latex_file) {
+        alert('Selected dashboard resume is not .tex. Choose a LaTeX resume to preserve exact structure.');
+        return;
+      }
+    }
+
+    if (resumeFile && !resumeFile.name.toLowerCase().endsWith('.tex')) {
+      alert('Exact-structure mode requires a .tex resume file.');
       return;
     }
 
@@ -106,7 +125,6 @@ export const Home: React.FC = () => {
 
       const data = response.data as OptimizerGenerateResponse;
       setResult(data.document);
-      setCreditsRemaining(data.credits_remaining);
       setShowDiff(false);
     } catch (error: any) {
       const message = error.response?.data?.error || 'Failed to generate optimized documents';
@@ -191,10 +209,10 @@ export const Home: React.FC = () => {
                 <p className="text-sm text-gray-600">Loading your dashboard resumes...</p>
               ) : (
                 <>
-                  {resumes.length > 0 ? (
+                  {latexResumes.length > 0 ? (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Use existing dashboard resume
+                        Use existing dashboard .tex resume
                       </label>
                       <select
                         value={selectedResumeId ?? ''}
@@ -204,7 +222,7 @@ export const Home: React.FC = () => {
                         className="w-full p-3 border border-gray-300 rounded-lg bg-white"
                         disabled={!!resumeFile}
                       >
-                        {resumes.map((resume) => (
+                        {latexResumes.map((resume) => (
                           <option key={resume.id} value={resume.id}>
                             Resume #{resume.id} ({new Date(resume.created_at).toLocaleDateString()})
                           </option>
@@ -218,7 +236,7 @@ export const Home: React.FC = () => {
                     </div>
                   ) : (
                     <p className="text-sm text-amber-700">
-                      No dashboard resume found. Upload a resume file below.
+                      No dashboard .tex resume found. Upload a .tex resume file below.
                     </p>
                   )}
                 </>
@@ -226,23 +244,30 @@ export const Home: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Upload new resume for this job (Optional)
+                  Upload new LaTeX resume for this job (Optional)
                 </label>
                 <label className="flex items-center justify-center gap-2 w-full border-2 border-dashed border-gray-300 rounded-lg p-4 cursor-pointer hover:border-blue-500 bg-white">
                   <Upload size={18} className="text-gray-500" />
                   <span className="text-sm text-gray-700">
-                    {resumeFile ? resumeFile.name : 'Choose PDF, DOCX, TXT, or TEX'}
+                    {resumeFile ? resumeFile.name : 'Choose .tex file'}
                   </span>
                   <input
                     type="file"
                     className="hidden"
-                    accept=".pdf,.docx,.txt,.tex"
+                    accept=".tex"
                     onChange={(e) => {
                       const file = e.target.files?.[0] || null;
+                      if (file && !file.name.toLowerCase().endsWith('.tex')) {
+                        alert('Please upload a .tex resume file.');
+                        return;
+                      }
                       setResumeFile(file);
                     }}
                   />
                 </label>
+                <p className="text-xs text-gray-500 mt-2">
+                  LaTeX resumes preserve the exact structure and layout of your base template.
+                </p>
               </div>
             </div>
 
@@ -263,10 +288,6 @@ export const Home: React.FC = () => {
                 Reset
               </button>
             </div>
-
-            {creditsRemaining !== null && (
-              <p className="mt-3 text-sm text-gray-600">Credits remaining: {creditsRemaining}</p>
-            )}
           </div>
 
           {result && (
@@ -281,31 +302,39 @@ export const Home: React.FC = () => {
                 <h2 className="text-2xl font-semibold text-gray-800 mb-4">Generated Documents</h2>
                 {result.is_latex_based && (
                   <p className="text-sm text-gray-600 mb-4">
-                    Controlled LaTeX mode: only Summary, Skills, and Certifications were updated.
-                    Experience, Projects, and Education were kept unchanged.
+                    Controlled LaTeX mode: only header headline, Summary, and Skills are updated.
+                    Experience, Projects, and Education are kept unchanged.
+                  </p>
+                )}
+                {result.is_latex_based && !result.resume_pdf && result.tailored_resume_tex && (
+                  <p className="text-sm text-amber-700 mb-4">
+                    PDF compile failed on server. Download the updated LaTeX source and compile locally.
                   </p>
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-                  {result.is_latex_based && result.tailored_resume_tex ? (
+                  <a
+                    href={getMediaUrl(result.resume_pdf)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`flex items-center justify-center gap-2 py-3 rounded-lg ${
+                      result.resume_pdf
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-gray-300 text-gray-600 pointer-events-none'
+                    }`}
+                  >
+                    <Download size={18} />
+                    Download Tailored Resume PDF
+                  </a>
+                  {result.is_latex_based && result.tailored_resume_tex && (
                     <a
                       href={getMediaUrl(result.tailored_resume_tex)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700"
+                      className="flex items-center justify-center gap-2 bg-slate-700 text-white py-3 rounded-lg hover:bg-slate-800"
                     >
-                      <Download size={18} />
-                      Download Updated .tex
-                    </a>
-                  ) : (
-                    <a
-                      href={getMediaUrl(result.resume_pdf)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700"
-                    >
-                      <Download size={18} />
-                      Download Tailored Resume
+                      <FileText size={18} />
+                      Download Updated LaTeX (.tex)
                     </a>
                   )}
                   <a

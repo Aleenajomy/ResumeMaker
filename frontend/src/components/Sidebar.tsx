@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { User, FileText, Award, Home, LogOut } from 'lucide-react';
+import { User, FileText, LogOut } from 'lucide-react';
 import { authService } from '../services/api';
 
 export const Sidebar: React.FC = () => {
@@ -13,11 +13,8 @@ export const Sidebar: React.FC = () => {
   };
 
   const menuItems = [
-    { icon: Home, label: 'Home', path: '/' },
+    { icon: FileText, label: 'Resume Optimizer', path: '/' },
     { icon: User, label: 'Profile', path: '/dashboard' },
-
-    { icon: Award, label: 'Certifications', path: '/certifications' },
-    { icon: FileText, label: 'View Details', path: '/profile-view' },
   ];
 
   return (

@@ -5,7 +5,14 @@ import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from django.conf import settings
-from openai import APIError, OpenAI, RateLimitError
+from openai import (
+    APIConnectionError,
+    APIError,
+    APIStatusError,
+    APITimeoutError,
+    OpenAI,
+    RateLimitError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +22,14 @@ if settings.OPENAI_BASE_URL:
 
 client = OpenAI(**client_kwargs)
 MODEL_NAME = settings.AI_MODEL
+
+
+class AIServiceUnavailableError(Exception):
+    """Raised when the AI provider is temporarily unreachable."""
+
+
+class AIServiceProviderError(Exception):
+    """Raised when the AI provider returns a non-retriable error."""
 
 DOCUMENT_SYSTEM_PROMPT = """
 You are a professional ATS resume optimizer.
@@ -35,12 +50,33 @@ Rules:
 - Keep all LaTeX commands and structure intact.
 - Do not add, remove, or rename any \\section headings.
 - Do not modify Experience, Projects, or Education content.
-- Modify only Summary and Skills section wording.
-- Keep command/layout structure in those sections intact.
+- Modify only:
+  1) the single headline line below the name in the header (if present),
+  2) Summary section wording,
+  3) Skills section wording.
+- Keep command/layout structure in those areas intact.
+- Do not modify location/contact lines in header.
 - Do not include markdown code fences.
 Return strict JSON only with keys:
-summary, skills, changes_made.
+headline, summary, skills, changes_made.
 If a section was missing in input, return an empty string for that key.
+headline must be plain text only (no trailing \\).
+"""
+
+PLAIN_TEXT_SECTION_SYSTEM_PROMPT = """
+You are a resume optimization engine for plain text resumes.
+Rules:
+- Do not modify Experience, Projects, or Education content.
+- Modify only:
+  1) headline line below the candidate name (if present),
+  2) Summary section wording,
+  3) Skills section wording.
+- Do not add or remove section headings.
+- Do not include markdown code fences.
+Return strict JSON only with keys:
+headline, summary, skills, changes_made.
+If a section was missing in input, return an empty string for that key.
+headline must be plain text only.
 """
 
 APPLICATION_DOCS_SYSTEM_PROMPT = """
@@ -54,6 +90,7 @@ MAX_RESUME_CHARS = 15000
 MAX_JOB_DESCRIPTION_CHARS = 12000
 MAX_REQUIREMENTS_CHARS = 4000
 MAX_LATEX_SECTION_CHARS = 4500
+MAX_PLAIN_TEXT_SECTION_CHARS = 3000
 
 LATEX_SECTION_ALIASES = {
     'summary': ['summary', 'professional summary', 'profile', 'objective'],
@@ -61,6 +98,20 @@ LATEX_SECTION_ALIASES = {
     'projects': ['projects', 'project', 'project experience', 'personal projects'],
     'skills': ['skills', 'technical skills', 'core skills', 'tech stack'],
     'certifications': ['certifications', 'certification', 'licenses', 'licenses and certifications'],
+}
+
+LATEX_TEMPLATE_PLACEHOLDERS = {
+    'headline': '{{HEADLINE}}',
+    'summary': '{{SUMMARY}}',
+    'skills': '{{SKILLS}}',
+}
+
+PLAIN_TEXT_SECTION_ALIASES = {
+    'summary': ['summary', 'professional summary', 'profile', 'objective'],
+    'experience': ['experience', 'work experience', 'professional experience', 'employment'],
+    'projects': ['projects', 'project', 'project experience', 'personal projects'],
+    'skills': ['skills', 'technical skills', 'core skills', 'tech stack'],
+    'education': ['education', 'academic background', 'academics'],
 }
 
 STOPWORDS = {
@@ -137,16 +188,32 @@ class AIService:
                 if attempt < max_retries - 1:
                     time.sleep(2 ** attempt)
                 else:
-                    raise Exception("AI rate limit exceeded. Please try again later.")
+                    raise AIServiceUnavailableError(
+                        "AI provider rate limit exceeded. Please try again shortly."
+                    )
+            except (APIConnectionError, APITimeoutError) as exc:
+                logger.error(f"AI provider connection error: {str(exc)}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+                else:
+                    raise AIServiceUnavailableError(
+                        "AI provider is currently unreachable. Check internet connection and try again."
+                    )
+            except APIStatusError as exc:
+                status_code = getattr(exc, 'status_code', None)
+                logger.error(f"AI provider status error ({status_code}): {str(exc)}")
+                raise AIServiceProviderError(
+                    f"AI provider request failed (status {status_code}). Verify API key/model and retry."
+                )
             except APIError as exc:
                 logger.error(f"AI provider API error: {str(exc)}")
-                raise Exception(f"AI service error: {str(exc)}")
+                raise AIServiceProviderError(f"AI service error: {str(exc)}")
             except Exception as exc:
                 logger.error(f"Unexpected error calling AI provider: {str(exc)}")
                 if attempt < max_retries - 1:
                     time.sleep(1)
                 else:
-                    raise Exception(f"Failed to process request: {str(exc)}")
+                    raise AIServiceProviderError(f"Failed to process request: {str(exc)}")
 
         raise Exception("Failed to get response from AI service")
 
@@ -480,6 +547,218 @@ Return JSON with this exact schema:
         return None
 
     @staticmethod
+    def has_latex_template_placeholders(latex_text: str) -> bool:
+        if not latex_text:
+            return False
+        return any(token in latex_text for token in LATEX_TEMPLATE_PLACEHOLDERS.values())
+
+    @staticmethod
+    def render_latex_template_placeholders(
+        latex_text: str,
+        headline: str,
+        summary: str,
+        skills: str,
+    ) -> str:
+        if not latex_text:
+            return ''
+
+        rendered = latex_text
+        replacement_map = {
+            LATEX_TEMPLATE_PLACEHOLDERS['headline']: AIService._sanitize_latex_headline_update(headline),
+            LATEX_TEMPLATE_PLACEHOLDERS['summary']: AIService._sanitize_latex_section_update(summary),
+            LATEX_TEMPLATE_PLACEHOLDERS['skills']: AIService._sanitize_latex_section_update(skills),
+        }
+
+        for placeholder, replacement in replacement_map.items():
+            rendered = rendered.replace(placeholder, replacement or '')
+
+        return rendered
+
+    @staticmethod
+    def _canonical_plain_text_section_key(title: str) -> Optional[str]:
+        normalized = AIService._normalize_latex_section_title(title)
+        if not normalized:
+            return None
+
+        for key, aliases in PLAIN_TEXT_SECTION_ALIASES.items():
+            for alias in aliases:
+                alias_normalized = AIService._normalize_latex_section_title(alias)
+                if (
+                    normalized == alias_normalized
+                    or normalized.startswith(alias_normalized)
+                    or alias_normalized in normalized
+                ):
+                    return key
+        return None
+
+    @staticmethod
+    def extract_plain_text_sections(resume_text: str) -> Dict[str, Dict[str, Any]]:
+        if not resume_text:
+            return {}
+
+        heading_pattern = re.compile(r'^\s*([A-Za-z][A-Za-z &/\-]{1,60})\s*:?\s*$', re.MULTILINE)
+        section_matches = []
+        for match in heading_pattern.finditer(resume_text):
+            title = (match.group(1) or '').strip()
+            section_key = AIService._canonical_plain_text_section_key(title)
+            if not section_key:
+                continue
+            section_matches.append((match, section_key, title))
+
+        if not section_matches:
+            return {}
+
+        sections: Dict[str, Dict[str, Any]] = {}
+        for index, (match, section_key, title) in enumerate(section_matches):
+            if section_key in sections:
+                continue
+
+            content_start = match.end()
+            content_end = (
+                section_matches[index + 1][0].start()
+                if index + 1 < len(section_matches)
+                else len(resume_text)
+            )
+
+            sections[section_key] = {
+                'title': title,
+                'start': content_start,
+                'end': content_end,
+                'content': resume_text[content_start:content_end].strip(),
+            }
+
+        return sections
+
+    @staticmethod
+    def _sanitize_plain_text_section_update(updated_content: str) -> str:
+        cleaned = (updated_content or '').strip()
+        if not cleaned:
+            return ''
+
+        lines = [line.rstrip() for line in cleaned.splitlines()]
+        while lines:
+            first = lines[0].strip().rstrip(':')
+            if AIService._canonical_plain_text_section_key(first):
+                lines.pop(0)
+                continue
+            break
+
+        cleaned = "\n".join(lines).strip()
+        if not cleaned:
+            return ''
+
+        return cleaned
+
+    @staticmethod
+    def apply_plain_text_section_updates(
+        resume_text: str,
+        section_map: Dict[str, Dict[str, Any]],
+        section_updates: Dict[str, str],
+    ) -> str:
+        if not section_map:
+            return resume_text
+
+        updated_resume = resume_text
+        ordered_sections = sorted(
+            section_map.items(),
+            key=lambda item: int(item[1]['start']),
+            reverse=True,
+        )
+
+        for section_key, metadata in ordered_sections:
+            replacement = AIService._sanitize_plain_text_section_update(section_updates.get(section_key, ''))
+            if not replacement:
+                continue
+
+            start = int(metadata['start'])
+            end = int(metadata['end'])
+            replacement_block = "\n" + replacement + "\n"
+            updated_resume = updated_resume[:start] + replacement_block + updated_resume[end:]
+
+        return updated_resume
+
+    @staticmethod
+    def extract_plain_text_headline(resume_text: str) -> Optional[Dict[str, Any]]:
+        if not resume_text:
+            return None
+
+        line_matches = list(re.finditer(r'^.*$', resume_text, flags=re.MULTILINE))
+        non_empty_lines = []
+        for match in line_matches:
+            raw_line = match.group(0)
+            stripped = raw_line.strip()
+            if not stripped:
+                continue
+
+            non_empty_lines.append({
+                'raw': raw_line,
+                'stripped': stripped,
+                'start': match.start(0),
+                'end': match.end(0),
+            })
+
+        if len(non_empty_lines) < 2:
+            return None
+
+        for candidate in non_empty_lines[1:5]:
+            value = candidate['stripped']
+            if AIService._canonical_plain_text_section_key(value):
+                continue
+            if any(token in value.lower() for token in ['@', 'linkedin', 'github', 'http', 'www']):
+                continue
+            if re.search(r'\d{5,}', value):
+                continue
+            if len(value) > 120:
+                continue
+
+            offset = candidate['raw'].find(value)
+            if offset < 0:
+                continue
+            start = int(candidate['start']) + int(offset)
+            end = start + len(value)
+            return {
+                'headline': value,
+                'start': start,
+                'end': end,
+            }
+
+        return None
+
+    @staticmethod
+    def _sanitize_plain_text_headline_update(updated_headline: str) -> str:
+        cleaned = (updated_headline or '').strip()
+        if not cleaned:
+            return ''
+
+        cleaned = cleaned.splitlines()[0].strip()
+        if not cleaned:
+            return ''
+
+        if AIService._canonical_plain_text_section_key(cleaned):
+            return ''
+        if len(cleaned) > 120:
+            cleaned = cleaned[:120].rstrip()
+
+        return cleaned
+
+    @staticmethod
+    def apply_plain_text_headline_update(
+        resume_text: str,
+        headline_metadata: Optional[Dict[str, Any]],
+        updated_headline: str,
+    ) -> str:
+        if not headline_metadata:
+            return resume_text
+
+        replacement = AIService._sanitize_plain_text_headline_update(updated_headline)
+        if not replacement:
+            return resume_text
+
+        start = int(headline_metadata['start'])
+        end = int(headline_metadata['end'])
+        return resume_text[:start] + replacement + resume_text[end:]
+
+    @staticmethod
     def extract_latex_sections(latex_text: str) -> Dict[str, Dict[str, Any]]:
         if not latex_text:
             return {}
@@ -556,6 +835,63 @@ Return JSON with this exact schema:
         return updated_latex
 
     @staticmethod
+    def extract_latex_headline(latex_text: str) -> Optional[Dict[str, Any]]:
+        if not latex_text:
+            return None
+
+        match = re.search(
+            r'(?P<prefix>^\s*.*\\scshape.*\\\\\s*$\n)'
+            r'(?P<indent>\s*)'
+            r'(?P<headline>[^\n]+?)'
+            r'(?P<suffix>\s*\\\\\s*)',
+            latex_text,
+            flags=re.MULTILINE,
+        )
+        if not match:
+            return None
+
+        return {
+            'headline': match.group('headline').strip(),
+            'start': match.start('headline'),
+            'end': match.end('headline'),
+        }
+
+    @staticmethod
+    def _sanitize_latex_headline_update(updated_headline: str) -> str:
+        cleaned = (updated_headline or '').strip()
+        if not cleaned:
+            return ''
+
+        cleaned = cleaned.splitlines()[0].strip()
+        cleaned = re.sub(r'\\\\\s*$', '', cleaned).strip()
+        if not cleaned:
+            return ''
+
+        if re.search(r'\\section\*?\{', cleaned):
+            return ''
+        if '\\begin{document}' in cleaned or '\\end{document}' in cleaned:
+            return ''
+
+        return AIService._escape_latex_text(cleaned)
+
+    @staticmethod
+    def apply_latex_headline_update(
+        latex_text: str,
+        headline_metadata: Optional[Dict[str, Any]],
+        updated_headline: str,
+    ) -> str:
+        if not headline_metadata:
+            return latex_text
+
+        replacement = AIService._sanitize_latex_headline_update(updated_headline)
+        if not replacement:
+            return latex_text
+
+        start = int(headline_metadata['start'])
+        end = int(headline_metadata['end'])
+        return latex_text[:start] + replacement + latex_text[end:]
+
+    @staticmethod
     def latex_to_plain_text(latex_text: str) -> str:
         if not latex_text:
             return ''
@@ -591,6 +927,11 @@ Return JSON with this exact schema:
         if not section_map:
             raise ValueError("Unable to detect editable LaTeX sections.")
 
+        headline_metadata = AIService.extract_latex_headline(latex_text)
+        headline_content = AIService._truncate_text(
+            str(headline_metadata.get('headline', '')) if headline_metadata else '',
+            220,
+        )
         summary_content = AIService._truncate_text(
             section_map.get('summary', {}).get('content', ''),
             MAX_LATEX_SECTION_CHARS,
@@ -600,8 +941,8 @@ Return JSON with this exact schema:
             MAX_LATEX_SECTION_CHARS,
         )
 
-        if not summary_content and not skills_content:
-            raise ValueError("Summary or Skills section not found in LaTeX resume.")
+        if not summary_content and not skills_content and not headline_content:
+            raise ValueError("Headline, Summary, or Skills section not found in LaTeX resume.")
 
         prompt = f"""User Profile:
 {json.dumps(user_profile, indent=2)}
@@ -620,8 +961,12 @@ Current Summary Section:
 Current Skills Section:
 {skills_content}
 
+Current Header Headline Line (below name):
+{headline_content if headline_content else "(Not found)"}
+
 Return JSON with this exact schema:
 {{
+  "headline": "string",
   "summary": "string",
   "skills": "string",
   "changes_made": ["string"]
@@ -648,13 +993,133 @@ Return JSON with this exact schema:
             section_updates=section_updates,
         )
 
+        old_headline = str(headline_metadata.get('headline', '')).strip() if headline_metadata else ''
+        candidate_headline = str(payload.get('headline', '')).strip()
+        sanitized_headline = AIService._sanitize_latex_headline_update(candidate_headline)
+        headline_updated = False
+        if headline_metadata and sanitized_headline and sanitized_headline != old_headline:
+            updated_latex = AIService.apply_latex_headline_update(
+                latex_text=updated_latex,
+                headline_metadata=headline_metadata,
+                updated_headline=sanitized_headline,
+            )
+            headline_updated = True
+
         raw_changes = payload.get('changes_made', [])
         if not isinstance(raw_changes, list):
             raw_changes = []
         changes_made = [str(item).strip() for item in raw_changes if str(item).strip()]
+        if headline_updated:
+            changes_made.append("Updated header headline for job alignment.")
 
         return {
             'updated_latex': updated_latex,
+            'changes_made': changes_made,
+            'sections_found': list(section_map.keys()),
+            'headline_update': str(payload.get('headline', '')).strip(),
+            'summary_update': section_updates['summary'],
+            'skills_update': section_updates['skills'],
+            'token_usage': usage,
+        }
+
+    @staticmethod
+    def optimize_plain_text_resume(
+        resume_text: str,
+        job_data: Dict[str, Any],
+        user_profile: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if not resume_text or len(resume_text.strip()) < 30:
+            raise ValueError("Resume content is too short")
+        if not isinstance(job_data, dict):
+            raise ValueError("Job data is invalid")
+
+        section_map = AIService.extract_plain_text_sections(resume_text)
+        headline_metadata = AIService.extract_plain_text_headline(resume_text)
+        headline_content = AIService._truncate_text(
+            str(headline_metadata.get('headline', '')) if headline_metadata else '',
+            220,
+        )
+        summary_content = AIService._truncate_text(
+            section_map.get('summary', {}).get('content', ''),
+            MAX_PLAIN_TEXT_SECTION_CHARS,
+        )
+        skills_content = AIService._truncate_text(
+            section_map.get('skills', {}).get('content', ''),
+            MAX_PLAIN_TEXT_SECTION_CHARS,
+        )
+
+        if not summary_content and not skills_content and not headline_content:
+            raise ValueError("Headline, Summary, or Skills section not found in resume.")
+
+        prompt = f"""User Profile:
+{json.dumps(user_profile, indent=2)}
+
+Job Title: {job_data.get('job_title', '')}
+Company: {job_data.get('company_name', '')}
+Job Description:
+{AIService._truncate_text(str(job_data.get('job_description', '')), MAX_JOB_DESCRIPTION_CHARS)}
+
+Requirements:
+{AIService._truncate_text(str(job_data.get('requirements', '')), MAX_REQUIREMENTS_CHARS)}
+
+Current Summary Section:
+{summary_content}
+
+Current Skills Section:
+{skills_content}
+
+Current Header Headline Line (below name):
+{headline_content if headline_content else "(Not found)"}
+
+Return JSON with this exact schema:
+{{
+  "headline": "string",
+  "summary": "string",
+  "skills": "string",
+  "changes_made": ["string"]
+}}"""
+
+        payload, usage = AIService._call_openai_with_retry(
+            prompt=prompt,
+            temperature=0.35,
+            system_prompt=PLAIN_TEXT_SECTION_SYSTEM_PROMPT,
+            return_usage=True,
+        )
+
+        if not isinstance(payload, dict):
+            raise ValueError("Invalid plain text optimization response format")
+
+        section_updates: Dict[str, str] = {
+            'summary': str(payload.get('summary', '')).strip(),
+            'skills': str(payload.get('skills', '')).strip(),
+        }
+        updated_resume_text = AIService.apply_plain_text_section_updates(
+            resume_text=resume_text,
+            section_map=section_map,
+            section_updates=section_updates,
+        )
+
+        old_headline = str(headline_metadata.get('headline', '')).strip() if headline_metadata else ''
+        candidate_headline = str(payload.get('headline', '')).strip()
+        sanitized_headline = AIService._sanitize_plain_text_headline_update(candidate_headline)
+        headline_updated = False
+        if headline_metadata and sanitized_headline and sanitized_headline != old_headline:
+            updated_resume_text = AIService.apply_plain_text_headline_update(
+                resume_text=updated_resume_text,
+                headline_metadata=headline_metadata,
+                updated_headline=sanitized_headline,
+            )
+            headline_updated = True
+
+        raw_changes = payload.get('changes_made', [])
+        if not isinstance(raw_changes, list):
+            raw_changes = []
+        changes_made = [str(item).strip() for item in raw_changes if str(item).strip()]
+        if headline_updated:
+            changes_made.append("Updated header headline for job alignment.")
+
+        return {
+            'updated_resume_text': updated_resume_text,
             'changes_made': changes_made,
             'sections_found': list(section_map.keys()),
             'token_usage': usage,

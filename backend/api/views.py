@@ -2,14 +2,13 @@ import logging
 
 from django.core.files.base import ContentFile
 from django.db import transaction
-from certifications.models import Certification
 from profiles.models import Profile
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from .ai_service import AIService
+from .ai_service import AIService, AIServiceProviderError, AIServiceUnavailableError
 from .models import (
     CoverLetter,
     GeneratedDocument,
@@ -337,6 +336,38 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = ResumeOptimizerRequestSerializer
 
+    @staticmethod
+    def _flatten_validation_errors(errors):
+        if isinstance(errors, dict):
+            parts = []
+            for field, value in errors.items():
+                message = ResumeOptimizerViewSet._flatten_validation_errors(value)
+                if not message:
+                    continue
+                if field == 'non_field_errors':
+                    parts.append(message)
+                else:
+                    parts.append(f"{field}: {message}")
+            return '; '.join(parts)
+
+        if isinstance(errors, list):
+            parts = []
+            for item in errors:
+                message = ResumeOptimizerViewSet._flatten_validation_errors(item)
+                if message:
+                    parts.append(message)
+            return '; '.join(parts)
+
+        text = str(errors).strip()
+        return text
+
+    @staticmethod
+    def _error_response(message, status_code, details=None):
+        payload = {'error': message}
+        if details is not None:
+            payload['details'] = details
+        return Response(payload, status=status_code)
+
     def _extract_resume_source(self, resume):
         if resume.latex_file:
             resume.latex_file.open('rb')
@@ -378,12 +409,12 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
             raise ValueError("Resume file size cannot exceed 10MB")
 
         filename = resume_file.name.lower()
-        if not filename.endswith(('.pdf', '.docx', '.txt', '.tex')):
-            raise ValueError("Unsupported file format. Use PDF, DOCX, TXT, or TEX.")
+        if not filename.endswith('.tex'):
+            raise ValueError("Exact structure mode requires a LaTeX (.tex) resume file.")
 
         source_text = PDFService.extract_text(resume_file)
-        is_latex = filename.endswith('.tex')
-        plain_text = AIService.latex_to_plain_text(source_text) if is_latex else source_text
+        is_latex = True
+        plain_text = AIService.latex_to_plain_text(source_text)
 
         parsed_content = {}
         if plain_text and len(plain_text.strip()) >= 50:
@@ -399,10 +430,7 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
             'user': user,
             'parsed_content': parsed_content,
         }
-        if is_latex:
-            create_kwargs['latex_file'] = resume_file
-        else:
-            create_kwargs['original_file'] = resume_file
+        create_kwargs['latex_file'] = resume_file
 
         resume = Resume.objects.create(**create_kwargs)
         return resume, {
@@ -428,6 +456,10 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
                 )
 
         source = self._extract_resume_source(resume)
+        if not source['is_latex']:
+            raise ValueError(
+                "Selected resume is not LaTeX (.tex). Upload or select a .tex resume to preserve exact structure."
+            )
         if not resume.parsed_content and source['plain_text'] and len(source['plain_text'].strip()) >= 50:
             try:
                 resume.parsed_content = AIService.parse_resume(source['plain_text'])
@@ -452,30 +484,27 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
             'portfolio_url': getattr(profile, 'portfolio_url', ''),
         }
 
-    def _get_user_certification_payload(self, user):
-        certifications = Certification.objects.filter(user=user).order_by('-issue_date', '-created_at')
-        return [
-            {
-                'title': cert.title,
-                'issuer': cert.issuer,
-            }
-            for cert in certifications
-        ]
-
     @action(detail=False, methods=['post'])
     def generate(self, request):
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            message = self._flatten_validation_errors(serializer.errors) or "Invalid request payload."
+            return self._error_response(
+                message=message,
+                status_code=status.HTTP_400_BAD_REQUEST,
+                details=serializer.errors,
+            )
 
         validated_data = serializer.validated_data
+        company_name = str(validated_data.get('company_name', '')).strip()
+        job_title = str(validated_data.get('job_title', '')).strip()
+        job_description = str(validated_data.get('job_description', '')).strip()
+        requirements = str(validated_data.get('requirements', '')).strip()
 
         try:
             with transaction.atomic():
                 user_model = request.user.__class__
                 locked_user = user_model.objects.select_for_update().get(pk=request.user.pk)
-
-                if locked_user.credits_remaining <= 0:
-                    raise PermissionError("No credits remaining. Please upgrade or wait for a reset.")
 
                 source_resume, source_resume_data = self._resolve_resume(
                     user=locked_user,
@@ -486,23 +515,13 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
                 job = Job.objects.create(
                     user=locked_user,
                     source_resume=source_resume,
-                    company_name=validated_data['company_name'],
-                    job_title=validated_data['job_title'],
-                    job_description=validated_data['job_description'],
-                    requirements=validated_data.get('requirements', ''),
+                    company_name=company_name,
+                    job_title=job_title,
+                    job_description=job_description,
+                    requirements=requirements,
                 )
 
                 user_profile = self._build_user_profile_payload(locked_user)
-                generated_payload = AIService.generate_job_documents(
-                    user_profile=user_profile,
-                    resume_text=source_resume_data['plain_text'],
-                    job_data={
-                        'company_name': job.company_name,
-                        'job_title': job.job_title,
-                        'job_description': job.job_description,
-                        'requirements': job.requirements,
-                    },
-                ) if not source_resume_data['is_latex'] else None
 
                 if source_resume_data['is_latex']:
                     latex_payload = AIService.optimize_latex_resume(
@@ -516,30 +535,23 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
                         user_profile=user_profile,
                     )
                     updated_latex = latex_payload['updated_latex']
-
-                    user_certifications = self._get_user_certification_payload(locked_user)
-                    selected_certifications = AIService.select_relevant_certifications(
-                        job_description=job.job_description,
-                        certifications=user_certifications,
-                        max_items=5,
-                    )
-                    certification_section_content = AIService.build_latex_certifications_section(
-                        selected_certifications
-                    )
-                    if not certification_section_content:
-                        certification_section_content = (
-                            r'\resumeItemListStart' + "\n"
-                            + r'\resumeItem{No certifications added in dashboard}' + "\n"
-                            + r'\resumeItemListEnd'
+                    ai_changes = list(latex_payload['changes_made'])
+                    if AIService.has_latex_template_placeholders(source_resume_data['latex_text']):
+                        rendered_template = AIService.render_latex_template_placeholders(
+                            latex_text=source_resume_data['latex_text'],
+                            headline=latex_payload.get('headline_update', ''),
+                            summary=latex_payload.get('summary_update', ''),
+                            skills=latex_payload.get('skills_update', ''),
                         )
-
-                    updated_sections = AIService.extract_latex_sections(updated_latex)
-                    if 'certifications' in updated_sections:
-                        updated_latex = AIService.apply_latex_section_updates(
-                            latex_text=updated_latex,
-                            section_map=updated_sections,
-                            section_updates={'certifications': certification_section_content},
-                        )
+                        if rendered_template.strip():
+                            updated_latex = rendered_template
+                            ai_changes.append(
+                                "Rendered LaTeX template placeholders for headline, summary, and skills."
+                            )
+                        else:
+                            ai_changes.append(
+                                "Template placeholder rendering produced empty output; used section-based updates."
+                            )
 
                     updated_plain_resume = AIService.latex_to_plain_text(updated_latex)
                     application_payload = AIService.generate_application_documents(
@@ -564,15 +576,6 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
                         'latex_optimization': latex_payload.get('token_usage'),
                         'application_documents': application_payload.get('token_usage'),
                     }
-                    ai_changes = list(latex_payload['changes_made'])
-                    if selected_certifications:
-                        selected_labels = [cert.get('title', '').strip() for cert in selected_certifications if cert.get('title')]
-                        if selected_labels:
-                            ai_changes.append(
-                                "Selected certifications from dashboard: " + ", ".join(selected_labels)
-                            )
-                    else:
-                        ai_changes.append("No certifications found in dashboard. Inserted placeholder in Certifications section.")
 
                     generated_document = GeneratedDocument.objects.create(
                         user=locked_user,
@@ -596,6 +599,28 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
                         ContentFile(updated_latex.encode('utf-8')),
                         save=False,
                     )
+                    try:
+                        resume_pdf_buffer = PDFService.compile_latex_to_pdf(updated_latex)
+                        generated_document.resume_pdf.save(
+                            f'tailored_resume_job_{job.id}_{generated_document.id}.pdf',
+                            ContentFile(resume_pdf_buffer.read()),
+                            save=False,
+                        )
+                    except Exception as exc:
+                        logger.warning(f"LaTeX resume PDF compilation failed: {str(exc)}")
+                        generated_document.ai_changes = list(generated_document.ai_changes) + [
+                            "LaTeX PDF compilation failed on server. Generated a fallback text PDF. "
+                            "Download the updated .tex file for exact-layout local compilation."
+                        ]
+                        fallback_pdf_buffer = PDFService.generate_text_pdf(
+                            title='',
+                            content=updated_plain_resume,
+                        )
+                        generated_document.resume_pdf.save(
+                            f'tailored_resume_job_{job.id}_{generated_document.id}_fallback.pdf',
+                            ContentFile(fallback_pdf_buffer.read()),
+                            save=False,
+                        )
 
                     cover_letter_pdf_buffer = PDFService.generate_text_pdf(
                         title=f"Cover Letter - {job.job_title}",
@@ -607,45 +632,67 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
                         save=False,
                     )
                 else:
+                    plain_text_payload = AIService.optimize_plain_text_resume(
+                        resume_text=source_resume_data['plain_text'],
+                        job_data={
+                            'company_name': job.company_name,
+                            'job_title': job.job_title,
+                            'job_description': job.job_description,
+                            'requirements': job.requirements,
+                        },
+                        user_profile=user_profile,
+                    )
+                    updated_resume_text = plain_text_payload['updated_resume_text']
+
+                    application_payload = AIService.generate_application_documents(
+                        user_profile=user_profile,
+                        tailored_resume_text=updated_resume_text,
+                        job_data={
+                            'company_name': job.company_name,
+                            'job_title': job.job_title,
+                            'job_description': job.job_description,
+                            'requirements': job.requirements,
+                        },
+                    )
+
                     ats_data = AIService.calculate_ats_score_from_text(
                         job_description=job.job_description,
-                        tailored_resume_text=generated_payload['tailored_resume_text'],
+                        tailored_resume_text=updated_resume_text,
                     )
                     diff_json = AIService.generate_diff(
                         original_text=source_resume_data['plain_text'],
-                        updated_text=generated_payload['tailored_resume_text'],
+                        updated_text=updated_resume_text,
                     )
-
-                    final_ats_score = (
-                        ats_data['score']
-                        if ats_data['score'] > 0
-                        else generated_payload['ats_score']
-                    )
+                    token_usage = {
+                        'plain_text_optimization': plain_text_payload.get('token_usage'),
+                        'application_documents': application_payload.get('token_usage'),
+                    }
+                    ai_changes = list(plain_text_payload['changes_made'])
 
                     generated_document = GeneratedDocument.objects.create(
                         user=locked_user,
                         job=job,
                         source_resume=source_resume,
-                        tailored_resume_text=generated_payload['tailored_resume_text'],
-                        cover_letter_text=generated_payload['cover_letter_text'],
-                        email_subject=generated_payload['email_subject'],
-                        email_body=generated_payload['email_body'],
-                        ats_score=final_ats_score,
+                        tailored_resume_text=updated_resume_text,
+                        cover_letter_text=application_payload['cover_letter_text'],
+                        email_subject=application_payload['email_subject'],
+                        email_body=application_payload['email_body'],
+                        ats_score=ats_data['score'],
                         matched_keywords=ats_data['matched'],
                         missing_keywords=ats_data['missing'],
                         diff_json=diff_json,
-                        ai_changes=generated_payload['changes_made'],
-                        token_usage=generated_payload.get('token_usage'),
+                        ai_changes=ai_changes,
+                        token_usage=token_usage,
                         is_latex_based=False,
                     )
 
                     resume_pdf_buffer = PDFService.generate_text_pdf(
-                        title=f"Tailored Resume - {job.job_title}",
-                        content=generated_payload['tailored_resume_text'],
+                        title='',
+                        content=updated_resume_text,
                     )
                     cover_letter_pdf_buffer = PDFService.generate_text_pdf(
                         title=f"Cover Letter - {job.job_title}",
-                        content=generated_payload['cover_letter_text'],
+                        content=application_payload['cover_letter_text'],
                     )
 
                     generated_document.resume_pdf.save(
@@ -660,29 +707,40 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
                     )
                 generated_document.save()
 
-                locked_user.credits_remaining -= 1
-                locked_user.save(update_fields=['credits_remaining'])
-                request.user.credits_remaining = locked_user.credits_remaining
-
                 response_serializer = GeneratedDocumentSerializer(generated_document)
         except Resume.DoesNotExist:
-            return Response({'error': 'Selected resume was not found.'}, status=status.HTTP_404_NOT_FOUND)
-        except PermissionError as exc:
-            return Response({'error': str(exc)}, status=status.HTTP_402_PAYMENT_REQUIRED)
+            return self._error_response(
+                message='Selected resume was not found.',
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        except AIServiceUnavailableError as exc:
+            logger.error(f"AI provider unavailable in optimizer generate: {str(exc)}")
+            return self._error_response(
+                message=str(exc),
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except AIServiceProviderError as exc:
+            logger.error(f"AI provider error in optimizer generate: {str(exc)}")
+            return self._error_response(
+                message=str(exc),
+                status_code=status.HTTP_502_BAD_GATEWAY,
+            )
         except ValueError as exc:
             logger.error(f"Validation error in optimizer generate: {str(exc)}")
-            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            return self._error_response(
+                message=str(exc),
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
         except Exception as exc:
             logger.error(f"Error in optimizer generate: {str(exc)}")
-            return Response(
-                {'error': 'Failed to generate job-specific documents. Please try again.'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            return self._error_response(
+                message='Failed to generate job-specific documents. Please try again.',
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         return Response(
             {
                 'document': response_serializer.data,
-                'credits_remaining': request.user.credits_remaining,
             },
             status=status.HTTP_201_CREATED,
         )

@@ -236,6 +236,8 @@ class ResumeOptimizerRequestSerializer(serializers.Serializer):
             raise serializers.ValidationError("Resume file size cannot exceed 10MB")
         if value:
             filename = value.name.lower()
-            if not filename.endswith(('.pdf', '.docx', '.txt', '.tex')):
-                raise serializers.ValidationError("Unsupported file format. Use PDF, DOCX, TXT, or TEX.")
+            if not filename.endswith('.tex'):
+                raise serializers.ValidationError(
+                    "Exact structure mode requires a LaTeX (.tex) resume file."
+                )
         return value

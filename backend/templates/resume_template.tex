@@ -1,0 +1,96 @@
+% ResumeMaker base LaTeX template (exact-structure mode)
+% Editable placeholders:
+%   {{HEADLINE}}
+%   {{SUMMARY}}
+%   {{SKILLS}}
+%
+% Keep Experience/Projects/Education fixed to preserve structure.
+
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{fontawesome5}
+\usepackage{multicol}
+\usepackage{xcolor}
+
+\input{glyphtounicode}
+\addtolength{\oddsidemargin}{-0.55in}
+\addtolength{\evensidemargin}{-0.55in}
+\addtolength{\textwidth}{1.1in}
+\addtolength{\topmargin}{-0.7in}
+\addtolength{\textheight}{1.65in}
+\urlstyle{same}
+\raggedright
+\setlength{\parskip}{0pt}
+\setlength{\tabcolsep}{0in}
+\titleformat{\section}{\vspace{-2pt}\scshape\raggedright\bfseries}{}{0em}{}[\color{black}\titlerule \vspace{-4pt}]
+\pdfgentounicode=1
+
+\newcommand{\resumeItem}[1]{\item\small{{#1}}}
+\newcommand{\resumeSubheading}[4]{
+  \item
+    \begin{tabular*}{1.0\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & \small #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-6pt}
+}
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{1.0\textwidth}{l@{\extracolsep{\fill}}r}
+      \small #1 & \small #2 \\
+    \end{tabular*}\vspace{-6pt}
+}
+\newcommand{\resumeItemListStart}{\begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]}
+\newcommand{\resumeItemListEnd}{\end{itemize}}
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0in,label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+
+\begin{document}
+
+\begin{center}
+    {\Large \scshape Your Name} \\
+    {{HEADLINE}} \\
+    City, Country \\
+    \small \faPhone\ +00 0000000000 ~
+    \href{mailto:email@example.com}{\faEnvelope\ email@example.com} ~
+    \href{https://www.linkedin.com/in/your-profile}{\faLinkedin\ linkedin.com/in/your-profile} ~
+    \href{https://github.com/your-handle}{\faGithub\ github.com/your-handle}
+\end{center}
+
+\section{Summary}
+{{SUMMARY}}
+
+\section{Experience}
+\resumeSubHeadingListStart
+  \resumeSubheading
+    {Role Title}{Dates}
+    {Company}{Location}
+    \resumeItemListStart
+      \resumeItem{Keep this section fixed in your base template.}
+    \resumeItemListEnd
+\resumeSubHeadingListEnd
+
+\section{Projects}
+\resumeSubHeadingListStart
+  \resumeProjectHeading{\textbf{Project Name} $|$ Tech Stack}{Year}
+  \resumeItemListStart
+    \resumeItem{Keep this section fixed in your base template.}
+  \resumeItemListEnd
+\resumeSubHeadingListEnd
+
+\section{Skills}
+{{SKILLS}}
+
+\section{Education}
+\resumeSubHeadingListStart
+  \resumeSubheading
+    {Degree}{Year}
+    {Institution}{CGPA/Score}
+\resumeSubHeadingListEnd
+
+\end{document}

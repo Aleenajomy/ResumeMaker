@@ -26,6 +26,51 @@ export const Dashboard: React.FC = () => {
     loadResumes();
   }, []);
 
+  const normalizeOptionalUrl = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return '';
+    }
+
+    if (/^https?:\/\//i.test(trimmed)) {
+      return trimmed;
+    }
+
+    return `https://${trimmed}`;
+  };
+
+  const extractApiErrorMessage = (error: any) => {
+    const responseData = error?.response?.data;
+    if (!responseData) {
+      return 'Error updating profile';
+    }
+
+    if (typeof responseData === 'string') {
+      return responseData;
+    }
+
+    if (typeof responseData?.error === 'string') {
+      return responseData.error;
+    }
+
+    if (typeof responseData === 'object') {
+      const messages: string[] = [];
+      for (const [field, value] of Object.entries(responseData)) {
+        if (Array.isArray(value) && value.length > 0) {
+          messages.push(`${field}: ${String(value[0])}`);
+        } else if (typeof value === 'string') {
+          messages.push(`${field}: ${value}`);
+        }
+      }
+
+      if (messages.length > 0) {
+        return messages.join('\n');
+      }
+    }
+
+    return 'Error updating profile';
+  };
+
   const loadProfile = async () => {
     try {
       const response = await profileService.get();
@@ -57,18 +102,57 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleProfileUpdate = async () => {
+    const fullName = profile.full_name.trim();
+    if (!fullName) {
+      alert('Full Name is required');
+      return;
+    }
+
+    const payload = {
+      ...profile,
+      full_name: fullName,
+      email: profile.email.trim(),
+      phone: profile.phone.trim(),
+      location: profile.location.trim(),
+      linkedin_url: normalizeOptionalUrl(profile.linkedin_url),
+      github_url: normalizeOptionalUrl(profile.github_url),
+      portfolio_url: normalizeOptionalUrl(profile.portfolio_url),
+      summary: profile.summary.trim(),
+      skills: Array.isArray(profile.skills)
+        ? profile.skills.map((skill) => skill.trim()).filter(Boolean)
+        : [],
+    };
+
     setLoading(true);
     try {
-      await profileService.update(profile);
+      const response = await profileService.update(payload);
+      if (response.data) {
+        setProfile({
+          full_name: response.data.full_name || '',
+          email: response.data.email || '',
+          phone: response.data.phone || '',
+          location: response.data.location || '',
+          linkedin_url: response.data.linkedin_url || '',
+          github_url: response.data.github_url || '',
+          portfolio_url: response.data.portfolio_url || '',
+          summary: response.data.summary || '',
+          skills: response.data.skills || [],
+        });
+      }
       alert('Profile updated successfully!');
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error updating profile');
+      alert(extractApiErrorMessage(error));
     } finally {
       setLoading(false);
     }
   };
 
   const handleResumeUpload = async (file: File) => {
+    if (!file.name.toLowerCase().endsWith('.tex')) {
+      alert('Please upload a LaTeX (.tex) resume to preserve exact structure.');
+      return;
+    }
+
     setLoading(true);
     try {
       // Delete existing resumes first
@@ -158,7 +242,7 @@ export const Dashboard: React.FC = () => {
                   value={profile.linkedin_url}
                   onChange={(e) => setProfile({ ...profile, linkedin_url: e.target.value })}
                   className="w-full p-2 border border-gray-300 rounded-lg"
-                  placeholder="linkedin.com/in/johndoe"
+                  placeholder="https://linkedin.com/in/johndoe"
                 />
               </div>
               <div>
@@ -168,7 +252,7 @@ export const Dashboard: React.FC = () => {
                   value={profile.github_url}
                   onChange={(e) => setProfile({ ...profile, github_url: e.target.value })}
                   className="w-full p-2 border border-gray-300 rounded-lg"
-                  placeholder="github.com/johndoe"
+                  placeholder="https://github.com/johndoe"
                 />
               </div>
               <div>
@@ -178,7 +262,7 @@ export const Dashboard: React.FC = () => {
                   value={profile.portfolio_url}
                   onChange={(e) => setProfile({ ...profile, portfolio_url: e.target.value })}
                   className="w-full p-2 border border-gray-300 rounded-lg"
-                  placeholder="johndoe.com"
+                  placeholder="https://johndoe.com"
                 />
               </div>
               <div>
@@ -218,15 +302,18 @@ export const Dashboard: React.FC = () => {
             <div className="mb-6">
               <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500">
                 <Upload className="text-gray-400 mb-2" size={32} />
-                <span className="text-sm text-gray-600">Upload Resume</span>
+                <span className="text-sm text-gray-600">Upload Base Resume (.tex)</span>
                 <input
                   type="file"
                   className="hidden"
-                  accept=".pdf,.docx,.txt,.tex"
+                  accept=".tex"
                   onChange={(e) => e.target.files?.[0] && handleResumeUpload(e.target.files[0])}
                   disabled={loading}
                 />
               </label>
+              <p className="text-xs text-gray-500 mt-2">
+                Exact layout preservation works with LaTeX resume source files.
+              </p>
             </div>
 
             <div className="space-y-3">

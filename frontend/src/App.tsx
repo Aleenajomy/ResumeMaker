@@ -1,6 +1,5 @@
 import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
-import { HomePage } from './pages/HomePage';
 import { Dashboard } from './pages/Dashboard';
 import { ProfileView } from './pages/ProfileView';
 import { Certifications } from './pages/Certifications';
@@ -20,7 +19,7 @@ function App() {
           path="/"
           element={
             <ProtectedRoute>
-              <HomePage />
+              <Home />
             </ProtectedRoute>
           }
         />
@@ -53,26 +52,6 @@ function App() {
           element={
             <ProtectedRoute>
               <Home />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/cover-letter"
-          element={
-            <ProtectedRoute>
-              <div className="min-h-screen flex items-center justify-center">
-                <h1 className="text-2xl">Cover Letter Generator - Coming Soon</h1>
-              </div>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/email-template"
-          element={
-            <ProtectedRoute>
-              <div className="min-h-screen flex items-center justify-center">
-                <h1 className="text-2xl">Email Templates - Coming Soon</h1>
-              </div>
             </ProtectedRoute>
           }
         />

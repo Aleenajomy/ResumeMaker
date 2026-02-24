@@ -111,5 +111,4 @@ export interface GeneratedDocument {
 
 export interface OptimizerGenerateResponse {
   document: GeneratedDocument;
-  credits_remaining: number;
 }
