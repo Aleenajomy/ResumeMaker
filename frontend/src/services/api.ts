@@ -157,23 +157,21 @@ export const coverLetterService = {
 export const resumeOptimizerService = {
   generate: (data: {
     companyName: string;
+    companyLocation?: string;
     jobTitle: string;
     jobDescription: string;
     requirements?: string;
     resumeId?: number;
-    resumeFile?: File | null;
   }) => {
     const formData = new FormData();
     formData.append('company_name', data.companyName);
+    formData.append('company_location', data.companyLocation || '');
     formData.append('job_title', data.jobTitle);
     formData.append('job_description', data.jobDescription);
     formData.append('requirements', data.requirements || '');
 
     if (typeof data.resumeId === 'number') {
       formData.append('resume_id', String(data.resumeId));
-    }
-    if (data.resumeFile) {
-      formData.append('resume_file', data.resumeFile);
     }
 
     return api.post('/resume-optimizer/generate/', formData, {

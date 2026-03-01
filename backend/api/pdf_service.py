@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 from io import BytesIO
 from pathlib import Path
+from typing import List
 
 from docx import Document
 from pypdf import PdfReader
@@ -324,3 +325,82 @@ class PDFService:
         except Exception as e:
             logger.error(f"Error generating text PDF: {str(e)}")
             raise ValueError(f"Failed to generate PDF: {str(e)}")
+
+    @staticmethod
+    def _escape_latex_text(value: str) -> str:
+        escaped = str(value or '')
+        replacements = {
+            '\\': r'\textbackslash{}',
+            '&': r'\&',
+            '%': r'\%',
+            '$': r'\$',
+            '#': r'\#',
+            '_': r'\_',
+            '{': r'\{',
+            '}': r'\}',
+            '~': r'\textasciitilde{}',
+            '^': r'\textasciicircum{}',
+        }
+        for source, target in replacements.items():
+            escaped = escaped.replace(source, target)
+        return escaped
+
+    @staticmethod
+    def _to_paragraphs(content: str) -> List[str]:
+        normalized = (content or '').replace('\r\n', '\n').replace('\r', '\n')
+        return [part.strip() for part in normalized.split('\n\n') if part.strip()]
+
+    @staticmethod
+    def build_cover_letter_latex(content, name=''):
+        if not content or not content.strip():
+            raise ValueError("Cover letter content is empty")
+
+        header = PDFService._escape_latex_text(name or 'Candidate')
+        paragraphs = PDFService._to_paragraphs(content)
+        if not paragraphs:
+            raise ValueError("Cover letter content is empty")
+
+        body = "\n\n".join(
+            f"{PDFService._escape_latex_text(paragraph)}\n\\par"
+            for paragraph in paragraphs
+        )
+        return rf"""\documentclass[11pt]{{letter}}
+\usepackage[margin=1in]{{geometry}}
+\usepackage[T1]{{fontenc}}
+\usepackage[utf8]{{inputenc}}
+\usepackage{{lmodern}}
+\setlength{{\parindent}}{{0pt}}
+\setlength{{\parskip}}{{10pt}}
+\begin{{document}}
+\textbf{{{header}}}
+
+{body}
+\end{{document}}
+"""
+
+    @staticmethod
+    def generate_cover_letter_pdf_via_latex(content, name=''):
+        latex_text = PDFService.build_cover_letter_latex(content=content, name=name)
+        return PDFService.compile_latex_to_pdf(latex_text)
+
+    @staticmethod
+    def generate_cover_letter_docx(content, name=''):
+        if not content or not content.strip():
+            raise ValueError("Cover letter content is empty")
+
+        try:
+            document = Document()
+            display_name = (name or '').strip()
+            if display_name:
+                document.add_paragraph(display_name)
+
+            for paragraph in PDFService._to_paragraphs(content):
+                document.add_paragraph(paragraph)
+
+            docx_file = BytesIO()
+            document.save(docx_file)
+            docx_file.seek(0)
+            return docx_file
+        except Exception as e:
+            logger.error(f"Error generating cover letter DOCX: {str(e)}")
+            raise ValueError(f"Failed to generate cover letter DOCX: {str(e)}")

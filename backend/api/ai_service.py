@@ -2,6 +2,7 @@ import json
 import logging
 import re
 import time
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from django.conf import settings
@@ -83,6 +84,19 @@ APPLICATION_DOCS_SYSTEM_PROMPT = """
 You are a professional job application writer.
 Return valid JSON only with keys:
 cover_letter_text, email_subject, email_body.
+The cover_letter_text must contain only the body paragraphs between greeting and sign-off.
+Do not include any header block, date, subject line, "Dear Hiring Manager,", or "Sincerely,".
+Body requirements:
+- Professional tone.
+- Tailored to the provided job description and candidate resume.
+- Length must be between 250 and 350 words.
+Email requirements:
+- Generate a professional job application email.
+- Keep it concise but substantive (about 90-140 words).
+- Use 2-3 short paragraphs.
+- Mention role, key fit, and request next steps/interview.
+- email_subject must be concise and professional.
+- email_body must not repeat the Subject line.
 Do not include markdown or code fences.
 """
 
@@ -123,6 +137,80 @@ STOPWORDS = {
 
 
 class AIService:
+    @staticmethod
+    def _clean_cover_letter_body(body_text: str) -> str:
+        if not body_text:
+            return ''
+
+        text = body_text.replace('\r\n', '\n').replace('\r', '\n').strip()
+
+        # Remove common wrappers so backend controls exact final template.
+        text = re.sub(r'^\s*(subject\s*:.*)\n+', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'^\s*dear\s+hiring\s+manager\s*,?\s*', '', text, flags=re.IGNORECASE)
+        text = re.sub(
+            r'\n*\s*(thanks|thank you)[\s\S]*$',
+            '',
+            text,
+            flags=re.IGNORECASE,
+        )
+        text = re.sub(r'\n*\s*sincerely[\s\S]*$', '', text, flags=re.IGNORECASE)
+
+        # Normalize paragraph spacing.
+        paragraphs = [p.strip() for p in re.split(r'\n\s*\n', text) if p.strip()]
+        return '\n\n'.join(paragraphs).strip()
+
+    @staticmethod
+    def format_cover_letter_template(
+        user_profile: Dict[str, Any],
+        job_data: Dict[str, Any],
+        body_text: str,
+    ) -> str:
+        location = str(user_profile.get('location', '')).strip() or 'Kannur, Kerala, India'
+        email = str(user_profile.get('email', '')).strip()
+        phone = str(user_profile.get('phone', '')).strip()
+        linkedin = str(user_profile.get('linkedin_url', '')).strip()
+        github = str(user_profile.get('github_url', '')).strip()
+        full_name = (
+            str(user_profile.get('full_name', '')).strip()
+            or str(user_profile.get('name', '')).strip()
+            or 'Candidate'
+        )
+
+        company_name = str(job_data.get('company_name', '')).strip() or 'Company Name'
+        job_title = str(job_data.get('job_title', '')).strip() or 'Software Developer'
+        company_location = str(job_data.get('company_location', '')).strip() or 'Company Location'
+        month_year = datetime.utcnow().strftime('%B %Y')
+
+        cleaned_body = AIService._clean_cover_letter_body(body_text)
+        if not cleaned_body:
+            cleaned_body = (
+                "I am writing to apply for this position and would welcome the opportunity "
+                "to contribute my skills to your team."
+            )
+
+        lines = [
+            location,
+            f"Email: {email}" if email else "Email: ",
+            f"Phone: {phone}" if phone else "Phone: ",
+            f"LinkedIn: {linkedin}" if linkedin else "LinkedIn: ",
+            f"GitHub: {github}" if github else "GitHub: ",
+            "",
+            month_year,
+            "",
+            "Hiring Manager",
+            company_name,
+            company_location,
+            "",
+            f"Subject: Application for {job_title}",
+            "",
+            "Dear Hiring Manager,",
+            cleaned_body,
+            "",
+            "Sincerely,",
+            full_name,
+        ]
+        return '\n'.join(lines)
+
     @staticmethod
     def _truncate_text(value: str, max_chars: int) -> str:
         if not value:
@@ -458,7 +546,92 @@ Return JSON with this exact schema:
         return validated
 
     @staticmethod
-    def _validate_application_docs_payload(payload: Dict[str, Any]) -> Dict[str, str]:
+    def _ensure_email_subject_has_company(email_subject: str, job_data: Dict[str, Any]) -> str:
+        subject = str(email_subject or '').strip()
+        company_name = str((job_data or {}).get('company_name', '')).strip()
+        if not subject or not company_name:
+            return subject
+
+        if company_name.lower() in subject.lower():
+            return subject
+
+        return f"{subject} - {company_name}"
+
+    @staticmethod
+    def _build_email_body_fallback(
+        user_profile: Dict[str, Any],
+        job_data: Dict[str, Any],
+        existing_body: str,
+    ) -> str:
+        full_name = (
+            str(user_profile.get('full_name', '')).strip()
+            or str(user_profile.get('name', '')).strip()
+            or "Candidate"
+        )
+        role = str(job_data.get('job_title', '')).strip() or "the role"
+        company = str(job_data.get('company_name', '')).strip() or "your company"
+        skills = user_profile.get('skills', []) if isinstance(user_profile.get('skills', []), list) else []
+        top_skills = ", ".join([str(skill).strip() for skill in skills[:3] if str(skill).strip()])
+        if not top_skills:
+            top_skills = "software development, backend engineering, and problem solving"
+
+        phone = str(user_profile.get('phone', '')).strip()
+        linkedin = str(user_profile.get('linkedin_url', '')).strip()
+        email = str(user_profile.get('email', '')).strip()
+
+        raw_body = str(existing_body or '').strip()
+        cleaned_lines: List[str] = []
+        for line in raw_body.splitlines():
+            stripped = line.strip()
+            lowered = stripped.lower()
+            if not stripped:
+                cleaned_lines.append('')
+                continue
+            if lowered.startswith('dear hiring manager') or lowered.startswith('dear hiring team'):
+                continue
+            if lowered.startswith('warm regards') or lowered.startswith('best regards'):
+                continue
+            if lowered == full_name.lower():
+                continue
+            cleaned_lines.append(stripped)
+        body = "\n".join(cleaned_lines).strip()
+
+        core = (
+            f"I am writing to apply for the {role} position at {company}. "
+            f"My background aligns well with this opportunity, especially in {top_skills}. "
+            f"I focus on building reliable, maintainable solutions and collaborating effectively to deliver impact.\n\n"
+            "I have attached my resume and can provide any additional information if needed. "
+            "I would welcome the opportunity to discuss how I can contribute to your team. "
+            "Thank you for your time and consideration.\n\n"
+            f"Warm regards,\n\n{full_name}"
+        )
+
+        use_fallback = not body or len(" ".join(body.split()).split()) < 70
+        if use_fallback:
+            body_text = core
+        else:
+            body_text = (
+                f"{body.strip()}\n\n"
+                f"Warm regards,\n\n{full_name}"
+            )
+
+        contact_lines = []
+        if phone:
+            contact_lines.append(f"Phone: {phone}")
+        if linkedin:
+            contact_lines.append(f"LinkedIn: {linkedin}")
+        if email:
+            contact_lines.append(f"Email: {email}")
+        contact_block = ("\n" + "\n".join(contact_lines)) if contact_lines else ""
+
+        return f"Dear Hiring Team,\n\n{body_text}{contact_block}"
+
+    @staticmethod
+    def _validate_application_docs_payload(
+        payload: Dict[str, Any],
+        job_data: Dict[str, Any],
+        user_profile: Dict[str, Any],
+    ) -> Dict[str, str]:
         if not isinstance(payload, dict):
             raise ValueError("AI response format is invalid")
 
@@ -472,6 +645,14 @@ Return JSON with this exact schema:
             raise ValueError("AI response missing email_subject")
         if not email_body:
             raise ValueError("AI response missing email_body")
+
+        email_body = AIService._build_email_body_fallback(
+            user_profile=user_profile,
+            job_data=job_data,
+            existing_body=email_body,
+        )
+
+        email_subject = AIService._ensure_email_subject_has_company(email_subject, job_data)
 
         return {
             'cover_letter_text': cover_letter_text,
@@ -509,7 +690,18 @@ Return JSON with this exact schema:
   "cover_letter_text": "string",
   "email_subject": "string",
   "email_body": "string"
-}}"""
+}}
+
+Cover letter generation instruction:
+Write a professional cover letter tailored to this job description based on the candidate resume.
+Length: 250-350 words.
+Professional tone.
+
+Email generation instruction:
+Generate a professional job application email.
+Keep it concise but substantive (about 90-140 words) in 2-3 short paragraphs.
+Subject line included via the "email_subject" field.
+The "email_body" must start with "Dear Hiring Team," and contain only the email body."""
 
         payload, usage = AIService._call_openai_with_retry(
             prompt=prompt,
@@ -518,7 +710,12 @@ Return JSON with this exact schema:
             return_usage=True,
         )
 
-        validated = AIService._validate_application_docs_payload(payload)
+        validated = AIService._validate_application_docs_payload(payload, job_data, user_profile)
+        validated['cover_letter_text'] = AIService.format_cover_letter_template(
+            user_profile=user_profile,
+            job_data=job_data,
+            body_text=validated['cover_letter_text'],
+        )
         validated['token_usage'] = usage
         return validated
 

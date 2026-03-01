@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ATSScore } from '../components/ATSScore';
 import { authService, resumeOptimizerService, resumeService } from '../services/api';
 import { GeneratedDocument, OptimizerGenerateResponse, Resume } from '../types';
-import { Copy, Download, FileText, RotateCcw, Upload } from 'lucide-react';
+import { Copy, Download, FileText, RotateCcw } from 'lucide-react';
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
@@ -14,12 +14,12 @@ export const Home: React.FC = () => {
   const [loadingGenerate, setLoadingGenerate] = useState(false);
 
   const [companyName, setCompanyName] = useState('');
+  const [companyLocation, setCompanyLocation] = useState('');
   const [jobTitle, setJobTitle] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [requirements, setRequirements] = useState('');
 
   const [selectedResumeId, setSelectedResumeId] = useState<number | null>(null);
-  const [resumeFile, setResumeFile] = useState<File | null>(null);
 
   const [result, setResult] = useState<GeneratedDocument | null>(null);
   const [showDiff, setShowDiff] = useState(false);
@@ -28,20 +28,16 @@ export const Home: React.FC = () => {
     () => resumes.filter((resume) => Boolean(resume.latex_file)),
     [resumes]
   );
-  const latestLatexResume = useMemo(
-    () => (latexResumes.length > 0 ? latexResumes[0] : null),
-    [latexResumes]
-  );
 
   useEffect(() => {
     loadResumes();
   }, []);
 
   useEffect(() => {
-    if (!selectedResumeId && latestLatexResume) {
-      setSelectedResumeId(latestLatexResume.id);
+    if (!selectedResumeId && latexResumes.length > 0) {
+      setSelectedResumeId(latexResumes[0].id);
     }
-  }, [latestLatexResume, selectedResumeId]);
+  }, [latexResumes, selectedResumeId]);
 
   const loadResumes = async () => {
     setLoadingResumes(true);
@@ -64,8 +60,8 @@ export const Home: React.FC = () => {
   const resetForm = () => {
     setResult(null);
     setShowDiff(false);
-    setResumeFile(null);
     setCompanyName('');
+    setCompanyLocation('');
     setJobTitle('');
     setJobDescription('');
     setRequirements('');
@@ -73,7 +69,10 @@ export const Home: React.FC = () => {
 
   const getMediaUrl = (path: string | null): string => {
     if (!path) return '#';
-    return path.startsWith('http') ? path : `${backendUrl}${path}`;
+    if (path.startsWith('http') || path.startsWith('data:')) {
+      return path;
+    }
+    return `${backendUrl}${path}`;
   };
 
   const handleCopyEmail = async () => {
@@ -94,21 +93,14 @@ export const Home: React.FC = () => {
       return;
     }
 
-    if (!resumeFile && !selectedResumeId) {
-      alert('Upload a LaTeX (.tex) resume here or use a .tex resume from your Dashboard');
+    if (!selectedResumeId) {
+      alert('Please select a dashboard .tex resume first.');
       return;
     }
 
-    if (!resumeFile && selectedResumeId) {
-      const selectedResume = resumes.find((resume) => resume.id === selectedResumeId);
-      if (!selectedResume?.latex_file) {
-        alert('Selected dashboard resume is not .tex. Choose a LaTeX resume to preserve exact structure.');
-        return;
-      }
-    }
-
-    if (resumeFile && !resumeFile.name.toLowerCase().endsWith('.tex')) {
-      alert('Exact-structure mode requires a .tex resume file.');
+    const selectedResume = latexResumes.find((resume) => resume.id === selectedResumeId);
+    if (!selectedResume?.latex_file) {
+      alert('Selected resume is not a .tex file. Upload/select a .tex resume from Dashboard.');
       return;
     }
 
@@ -116,11 +108,11 @@ export const Home: React.FC = () => {
     try {
       const response = await resumeOptimizerService.generate({
         companyName: companyName.trim(),
+        companyLocation: companyLocation.trim(),
         jobTitle: jobTitle.trim(),
         jobDescription: jobDescription.trim(),
         requirements: requirements.trim(),
-        resumeId: resumeFile ? undefined : selectedResumeId || undefined,
-        resumeFile,
+        resumeId: selectedResumeId,
       });
 
       const data = response.data as OptimizerGenerateResponse;
@@ -142,15 +134,23 @@ export const Home: React.FC = () => {
           <div>
             <h1 className="text-4xl font-bold text-gray-800">Resume Optimizer</h1>
             <p className="text-gray-600 mt-1">
-              Generate tailored resume, cover letter, email, and resume diff in one click
+              Generate resume, cover letter, email, and resume diff in one click
             </p>
           </div>
-          <button
-            onClick={handleLogout}
-            className="bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-800"
-          >
-            Logout
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="bg-white border border-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-100"
+            >
+              Dashboard
+            </button>
+            <button
+              onClick={handleLogout}
+              className="bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-800"
+            >
+              Logout
+            </button>
+          </div>
         </div>
 
         <div className="max-w-5xl mx-auto space-y-6">
@@ -166,6 +166,16 @@ export const Home: React.FC = () => {
                   onChange={(e) => setCompanyName(e.target.value)}
                   className="w-full p-3 border border-gray-300 rounded-lg"
                   placeholder="Google"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Company Location (Optional)</label>
+                <input
+                  type="text"
+                  value={companyLocation}
+                  onChange={(e) => setCompanyLocation(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  placeholder="Technopark, Kerala"
                 />
               </div>
               <div>
@@ -203,72 +213,38 @@ export const Home: React.FC = () => {
             </div>
 
             <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3">
-              <p className="font-medium text-gray-800">Resume Source (upload not mandatory)</p>
-
+              <p className="font-medium text-gray-800">Resume Source (Dashboard `.tex` only)</p>
               {loadingResumes ? (
-                <p className="text-sm text-gray-600">Loading your dashboard resumes...</p>
+                <p className="text-sm text-gray-600">Loading dashboard resumes...</p>
+              ) : latexResumes.length === 0 ? (
+                <div className="text-sm text-amber-700 space-y-2">
+                  <p>No `.tex` resume found in Dashboard.</p>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/dashboard')}
+                    className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-800 hover:bg-gray-100"
+                  >
+                    Go to Dashboard Upload
+                  </button>
+                </div>
               ) : (
-                <>
-                  {latexResumes.length > 0 ? (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Use existing dashboard .tex resume
-                      </label>
-                      <select
-                        value={selectedResumeId ?? ''}
-                        onChange={(e) =>
-                          setSelectedResumeId(e.target.value ? Number(e.target.value) : null)
-                        }
-                        className="w-full p-3 border border-gray-300 rounded-lg bg-white"
-                        disabled={!!resumeFile}
-                      >
-                        {latexResumes.map((resume) => (
-                          <option key={resume.id} value={resume.id}>
-                            Resume #{resume.id} ({new Date(resume.created_at).toLocaleDateString()})
-                          </option>
-                        ))}
-                      </select>
-                      {resumeFile && (
-                        <p className="text-xs text-blue-700 mt-2">
-                          Uploaded file will override selected dashboard resume.
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-amber-700">
-                      No dashboard .tex resume found. Upload a .tex resume file below.
-                    </p>
-                  )}
-                </>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Select uploaded dashboard `.tex` resume
+                  </label>
+                  <select
+                    value={selectedResumeId ?? ''}
+                    onChange={(e) => setSelectedResumeId(e.target.value ? Number(e.target.value) : null)}
+                    className="w-full p-3 border border-gray-300 rounded-lg bg-white"
+                  >
+                    {latexResumes.map((resume) => (
+                      <option key={resume.id} value={resume.id}>
+                        Resume #{resume.id} ({new Date(resume.created_at).toLocaleDateString()})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Upload new LaTeX resume for this job (Optional)
-                </label>
-                <label className="flex items-center justify-center gap-2 w-full border-2 border-dashed border-gray-300 rounded-lg p-4 cursor-pointer hover:border-blue-500 bg-white">
-                  <Upload size={18} className="text-gray-500" />
-                  <span className="text-sm text-gray-700">
-                    {resumeFile ? resumeFile.name : 'Choose .tex file'}
-                  </span>
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept=".tex"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      if (file && !file.name.toLowerCase().endsWith('.tex')) {
-                        alert('Please upload a .tex resume file.');
-                        return;
-                      }
-                      setResumeFile(file);
-                    }}
-                  />
-                </label>
-                <p className="text-xs text-gray-500 mt-2">
-                  LaTeX resumes preserve the exact structure and layout of your base template.
-                </p>
-              </div>
             </div>
 
             <div className="mt-5 flex flex-col md:flex-row gap-3">
@@ -277,7 +253,7 @@ export const Home: React.FC = () => {
                 disabled={loadingGenerate}
                 className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-medium"
               >
-                {loadingGenerate ? 'Generating...' : 'Generate Tailored Documents'}
+                {loadingGenerate ? 'Generating...' : 'Generate Documents'}
               </button>
               <button
                 onClick={resetForm}
@@ -324,27 +300,33 @@ export const Home: React.FC = () => {
                     }`}
                   >
                     <Download size={18} />
-                    Download Tailored Resume PDF
+                    Download Resume PDF
                   </a>
-                  {result.is_latex_based && result.tailored_resume_tex && (
-                    <a
-                      href={getMediaUrl(result.tailored_resume_tex)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 bg-slate-700 text-white py-3 rounded-lg hover:bg-slate-800"
-                    >
-                      <FileText size={18} />
-                      Download Updated LaTeX (.tex)
-                    </a>
-                  )}
                   <a
                     href={getMediaUrl(result.cover_letter_pdf)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700"
+                    className={`flex items-center justify-center gap-2 py-3 rounded-lg ${
+                      result.cover_letter_pdf
+                        ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                        : 'bg-gray-300 text-gray-600 pointer-events-none'
+                    }`}
                   >
                     <FileText size={18} />
-                    Download Cover Letter
+                    Download Cover Letter PDF
+                  </a>
+                  <a
+                    href={getMediaUrl(result.cover_letter_docx)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`flex items-center justify-center gap-2 py-3 rounded-lg ${
+                      result.cover_letter_docx
+                        ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                        : 'bg-gray-300 text-gray-600 pointer-events-none'
+                    }`}
+                  >
+                    <FileText size={18} />
+                    Download Cover Letter DOCX
                   </a>
                   <button
                     onClick={handleCopyEmail}
@@ -362,11 +344,11 @@ export const Home: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div className="border border-gray-200 rounded-lg p-4">
-                    <h3 className="font-semibold mb-2">Email Subject</h3>
-                    <p className="text-gray-700 text-sm">{result.email_subject}</p>
-                    <h3 className="font-semibold mt-4 mb-2">Email Body</h3>
-                    <p className="text-gray-700 text-sm whitespace-pre-wrap">{result.email_body}</p>
+                  <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <h3 className="font-semibold mb-3">Email Template</h3>
+                    <div className="bg-white border border-gray-200 rounded-md p-3">
+                      <p className="text-gray-700 text-sm whitespace-pre-wrap">{`Subject: ${result.email_subject}\n\n${result.email_body}`}</p>
+                    </div>
                   </div>
 
                   <div className="border border-gray-200 rounded-lg p-4">

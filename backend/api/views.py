@@ -1,7 +1,8 @@
 import logging
+import base64
 
 from django.core.files.base import ContentFile
-from django.db import transaction
+from django.utils import timezone
 from profiles.models import Profile
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -425,41 +426,37 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
 
         if hasattr(resume_file, 'seek'):
             resume_file.seek(0)
-
-        create_kwargs = {
-            'user': user,
-            'parsed_content': parsed_content,
-        }
-        create_kwargs['latex_file'] = resume_file
-
-        resume = Resume.objects.create(**create_kwargs)
-        return resume, {
+        return None, {
             'is_latex': is_latex,
             'latex_text': source_text if is_latex else None,
             'plain_text': plain_text,
+            'parsed_content': parsed_content,
         }
 
     def _resolve_resume(self, user, request, validated_data):
-        resume_file = request.FILES.get('resume_file')
         resume_id = validated_data.get('resume_id')
-
-        if resume_file:
-            return self._create_resume_from_upload(user, resume_file)
 
         if resume_id:
             resume = Resume.objects.get(id=resume_id, user=user)
         else:
-            resume = Resume.objects.filter(user=user).order_by('-created_at').first()
+            resume = (
+                Resume.objects
+                .filter(user=user, latex_file__isnull=False)
+                .exclude(latex_file='')
+                .order_by('-created_at')
+                .first()
+            )
             if not resume:
                 raise ValueError(
-                    "No resume found. Upload one in Dashboard or attach one in the optimizer form."
+                    "No dashboard .tex resume found. Upload your base .tex resume in Dashboard first."
                 )
 
         source = self._extract_resume_source(resume)
         if not source['is_latex']:
             raise ValueError(
-                "Selected resume is not LaTeX (.tex). Upload or select a .tex resume to preserve exact structure."
+                "Selected resume is not LaTeX (.tex). Please choose a .tex resume from Dashboard."
             )
+
         if not resume.parsed_content and source['plain_text'] and len(source['plain_text'].strip()) >= 50:
             try:
                 resume.parsed_content = AIService.parse_resume(source['plain_text'])
@@ -484,6 +481,50 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
             'portfolio_url': getattr(profile, 'portfolio_url', ''),
         }
 
+    @staticmethod
+    def _buffer_to_data_url(buffer, mime_type):
+        raw = buffer.read()
+        encoded = base64.b64encode(raw).decode('ascii')
+        return f"data:{mime_type};base64,{encoded}"
+
+    @staticmethod
+    def _text_to_data_url(text, mime_type='text/plain'):
+        encoded = base64.b64encode(text.encode('utf-8')).decode('ascii')
+        return f"data:{mime_type};charset=utf-8;base64,{encoded}"
+
+    def _build_cover_letter_exports(self, content, user_profile, ai_changes):
+        candidate_name = str(user_profile.get('full_name', '')).strip() or "Candidate"
+
+        try:
+            cover_letter_pdf_buffer = PDFService.generate_cover_letter_pdf_via_latex(
+                content=content,
+                name=candidate_name,
+            )
+            cover_letter_pdf = self._buffer_to_data_url(cover_letter_pdf_buffer, mime_type='application/pdf')
+        except Exception as exc:
+            logger.warning(f"LaTeX cover letter PDF compilation failed: {str(exc)}")
+            ai_changes.append(
+                "LaTeX cover letter compilation failed on server. Generated a fallback text PDF."
+            )
+            fallback_pdf_buffer = PDFService.generate_text_pdf(
+                title="Cover Letter",
+                content=content,
+            )
+            cover_letter_pdf = self._buffer_to_data_url(
+                fallback_pdf_buffer,
+                mime_type='application/pdf',
+            )
+
+        cover_letter_docx_buffer = PDFService.generate_cover_letter_docx(
+            content=content,
+            name=candidate_name,
+        )
+        cover_letter_docx = self._buffer_to_data_url(
+            cover_letter_docx_buffer,
+            mime_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        )
+        return cover_letter_pdf, cover_letter_docx
+
     @action(detail=False, methods=['post'])
     def generate(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -497,217 +538,179 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
 
         validated_data = serializer.validated_data
         company_name = str(validated_data.get('company_name', '')).strip()
+        company_location = str(validated_data.get('company_location', '')).strip()
         job_title = str(validated_data.get('job_title', '')).strip()
         job_description = str(validated_data.get('job_description', '')).strip()
         requirements = str(validated_data.get('requirements', '')).strip()
 
         try:
-            with transaction.atomic():
-                user_model = request.user.__class__
-                locked_user = user_model.objects.select_for_update().get(pk=request.user.pk)
+            source_resume, source_resume_data = self._resolve_resume(
+                user=request.user,
+                request=request,
+                validated_data=validated_data,
+            )
+            job_payload = {
+                'id': 0,
+                'source_resume': source_resume.id if source_resume else None,
+                'company_name': company_name,
+                'company_location': company_location,
+                'job_title': job_title,
+                'job_description': job_description,
+                'requirements': requirements,
+                'created_at': timezone.now().isoformat(),
+            }
+            job_data = {
+                'company_name': company_name,
+                'company_location': company_location,
+                'job_title': job_title,
+                'job_description': job_description,
+                'requirements': requirements,
+            }
+            user_profile = self._build_user_profile_payload(request.user)
 
-                source_resume, source_resume_data = self._resolve_resume(
-                    user=locked_user,
-                    request=request,
-                    validated_data=validated_data,
+            if source_resume_data['is_latex']:
+                latex_payload = AIService.optimize_latex_resume(
+                    latex_text=source_resume_data['latex_text'],
+                    job_data=job_data,
+                    user_profile=user_profile,
                 )
+                updated_latex = latex_payload['updated_latex']
+                ai_changes = list(latex_payload['changes_made'])
 
-                job = Job.objects.create(
-                    user=locked_user,
-                    source_resume=source_resume,
-                    company_name=company_name,
-                    job_title=job_title,
-                    job_description=job_description,
-                    requirements=requirements,
-                )
-
-                user_profile = self._build_user_profile_payload(locked_user)
-
-                if source_resume_data['is_latex']:
-                    latex_payload = AIService.optimize_latex_resume(
+                if AIService.has_latex_template_placeholders(source_resume_data['latex_text']):
+                    rendered_template = AIService.render_latex_template_placeholders(
                         latex_text=source_resume_data['latex_text'],
-                        job_data={
-                            'company_name': job.company_name,
-                            'job_title': job.job_title,
-                            'job_description': job.job_description,
-                            'requirements': job.requirements,
-                        },
-                        user_profile=user_profile,
+                        headline=latex_payload.get('headline_update', ''),
+                        summary=latex_payload.get('summary_update', ''),
+                        skills=latex_payload.get('skills_update', ''),
                     )
-                    updated_latex = latex_payload['updated_latex']
-                    ai_changes = list(latex_payload['changes_made'])
-                    if AIService.has_latex_template_placeholders(source_resume_data['latex_text']):
-                        rendered_template = AIService.render_latex_template_placeholders(
-                            latex_text=source_resume_data['latex_text'],
-                            headline=latex_payload.get('headline_update', ''),
-                            summary=latex_payload.get('summary_update', ''),
-                            skills=latex_payload.get('skills_update', ''),
+                    if rendered_template.strip():
+                        updated_latex = rendered_template
+                        ai_changes.append(
+                            "Rendered LaTeX template placeholders for headline, summary, and skills."
                         )
-                        if rendered_template.strip():
-                            updated_latex = rendered_template
-                            ai_changes.append(
-                                "Rendered LaTeX template placeholders for headline, summary, and skills."
-                            )
-                        else:
-                            ai_changes.append(
-                                "Template placeholder rendering produced empty output; used section-based updates."
-                            )
-
-                    updated_plain_resume = AIService.latex_to_plain_text(updated_latex)
-                    application_payload = AIService.generate_application_documents(
-                        user_profile=user_profile,
-                        tailored_resume_text=updated_plain_resume,
-                        job_data={
-                            'company_name': job.company_name,
-                            'job_title': job.job_title,
-                            'job_description': job.job_description,
-                            'requirements': job.requirements,
-                        },
-                    )
-                    ats_data = AIService.calculate_ats_score_from_text(
-                        job_description=job.job_description,
-                        tailored_resume_text=updated_plain_resume,
-                    )
-                    diff_json = AIService.generate_diff(
-                        original_text=source_resume_data['latex_text'],
-                        updated_text=updated_latex,
-                    )
-                    token_usage = {
-                        'latex_optimization': latex_payload.get('token_usage'),
-                        'application_documents': application_payload.get('token_usage'),
-                    }
-
-                    generated_document = GeneratedDocument.objects.create(
-                        user=locked_user,
-                        job=job,
-                        source_resume=source_resume,
-                        tailored_resume_text=updated_latex,
-                        cover_letter_text=application_payload['cover_letter_text'],
-                        email_subject=application_payload['email_subject'],
-                        email_body=application_payload['email_body'],
-                        ats_score=ats_data['score'],
-                        matched_keywords=ats_data['matched'],
-                        missing_keywords=ats_data['missing'],
-                        diff_json=diff_json,
-                        ai_changes=ai_changes,
-                        token_usage=token_usage,
-                        is_latex_based=True,
-                    )
-
-                    generated_document.tailored_resume_tex.save(
-                        f'tailored_resume_job_{job.id}_{generated_document.id}.tex',
-                        ContentFile(updated_latex.encode('utf-8')),
-                        save=False,
-                    )
-                    try:
-                        resume_pdf_buffer = PDFService.compile_latex_to_pdf(updated_latex)
-                        generated_document.resume_pdf.save(
-                            f'tailored_resume_job_{job.id}_{generated_document.id}.pdf',
-                            ContentFile(resume_pdf_buffer.read()),
-                            save=False,
-                        )
-                    except Exception as exc:
-                        logger.warning(f"LaTeX resume PDF compilation failed: {str(exc)}")
-                        generated_document.ai_changes = list(generated_document.ai_changes) + [
-                            "LaTeX PDF compilation failed on server. Generated a fallback text PDF. "
-                            "Download the updated .tex file for exact-layout local compilation."
-                        ]
-                        fallback_pdf_buffer = PDFService.generate_text_pdf(
-                            title='',
-                            content=updated_plain_resume,
-                        )
-                        generated_document.resume_pdf.save(
-                            f'tailored_resume_job_{job.id}_{generated_document.id}_fallback.pdf',
-                            ContentFile(fallback_pdf_buffer.read()),
-                            save=False,
+                    else:
+                        ai_changes.append(
+                            "Template placeholder rendering produced empty output; used section-based updates."
                         )
 
-                    cover_letter_pdf_buffer = PDFService.generate_text_pdf(
-                        title=f"Cover Letter - {job.job_title}",
-                        content=application_payload['cover_letter_text'],
-                    )
-                    generated_document.cover_letter_pdf.save(
-                        f'cover_letter_job_{job.id}_{generated_document.id}.pdf',
-                        ContentFile(cover_letter_pdf_buffer.read()),
-                        save=False,
-                    )
-                else:
-                    plain_text_payload = AIService.optimize_plain_text_resume(
-                        resume_text=source_resume_data['plain_text'],
-                        job_data={
-                            'company_name': job.company_name,
-                            'job_title': job.job_title,
-                            'job_description': job.job_description,
-                            'requirements': job.requirements,
-                        },
-                        user_profile=user_profile,
-                    )
-                    updated_resume_text = plain_text_payload['updated_resume_text']
+                updated_plain_resume = AIService.latex_to_plain_text(updated_latex)
+                application_payload = AIService.generate_application_documents(
+                    user_profile=user_profile,
+                    tailored_resume_text=updated_plain_resume,
+                    job_data=job_data,
+                )
+                ats_data = AIService.calculate_ats_score_from_text(
+                    job_description=job_description,
+                    tailored_resume_text=updated_plain_resume,
+                )
+                diff_json = AIService.generate_diff(
+                    original_text=source_resume_data['latex_text'],
+                    updated_text=updated_latex,
+                )
+                token_usage = {
+                    'latex_optimization': latex_payload.get('token_usage'),
+                    'application_documents': application_payload.get('token_usage'),
+                }
 
-                    application_payload = AIService.generate_application_documents(
-                        user_profile=user_profile,
-                        tailored_resume_text=updated_resume_text,
-                        job_data={
-                            'company_name': job.company_name,
-                            'job_title': job.job_title,
-                            'job_description': job.job_description,
-                            'requirements': job.requirements,
-                        },
-                    )
-
-                    ats_data = AIService.calculate_ats_score_from_text(
-                        job_description=job.job_description,
-                        tailored_resume_text=updated_resume_text,
-                    )
-                    diff_json = AIService.generate_diff(
-                        original_text=source_resume_data['plain_text'],
-                        updated_text=updated_resume_text,
-                    )
-                    token_usage = {
-                        'plain_text_optimization': plain_text_payload.get('token_usage'),
-                        'application_documents': application_payload.get('token_usage'),
-                    }
-                    ai_changes = list(plain_text_payload['changes_made'])
-
-                    generated_document = GeneratedDocument.objects.create(
-                        user=locked_user,
-                        job=job,
-                        source_resume=source_resume,
-                        tailored_resume_text=updated_resume_text,
-                        cover_letter_text=application_payload['cover_letter_text'],
-                        email_subject=application_payload['email_subject'],
-                        email_body=application_payload['email_body'],
-                        ats_score=ats_data['score'],
-                        matched_keywords=ats_data['matched'],
-                        missing_keywords=ats_data['missing'],
-                        diff_json=diff_json,
-                        ai_changes=ai_changes,
-                        token_usage=token_usage,
-                        is_latex_based=False,
-                    )
-
-                    resume_pdf_buffer = PDFService.generate_text_pdf(
+                tailored_resume_tex = self._text_to_data_url(updated_latex, mime_type='application/x-tex')
+                try:
+                    resume_pdf_buffer = PDFService.compile_latex_to_pdf(updated_latex)
+                    resume_pdf = self._buffer_to_data_url(resume_pdf_buffer, mime_type='application/pdf')
+                except Exception as exc:
+                    logger.warning(f"LaTeX resume PDF compilation failed: {str(exc)}")
+                    ai_changes = ai_changes + [
+                        "LaTeX PDF compilation failed on server. Generated a fallback text PDF."
+                    ]
+                    fallback_pdf_buffer = PDFService.generate_text_pdf(
                         title='',
-                        content=updated_resume_text,
+                        content=updated_plain_resume,
                     )
-                    cover_letter_pdf_buffer = PDFService.generate_text_pdf(
-                        title=f"Cover Letter - {job.job_title}",
-                        content=application_payload['cover_letter_text'],
-                    )
+                    resume_pdf = self._buffer_to_data_url(fallback_pdf_buffer, mime_type='application/pdf')
 
-                    generated_document.resume_pdf.save(
-                        f'tailored_resume_job_{job.id}_{generated_document.id}.pdf',
-                        ContentFile(resume_pdf_buffer.read()),
-                        save=False,
-                    )
-                    generated_document.cover_letter_pdf.save(
-                        f'cover_letter_job_{job.id}_{generated_document.id}.pdf',
-                        ContentFile(cover_letter_pdf_buffer.read()),
-                        save=False,
-                    )
-                generated_document.save()
+                cover_letter_pdf, cover_letter_docx = self._build_cover_letter_exports(
+                    content=application_payload['cover_letter_text'],
+                    user_profile=user_profile,
+                    ai_changes=ai_changes,
+                )
 
-                response_serializer = GeneratedDocumentSerializer(generated_document)
+                document_payload = {
+                    'id': 0,
+                    'job': job_payload,
+                    'source_resume': source_resume.id if source_resume else None,
+                    'tailored_resume_text': updated_latex,
+                    'cover_letter_text': application_payload['cover_letter_text'],
+                    'email_subject': application_payload['email_subject'],
+                    'email_body': application_payload['email_body'],
+                    'ats_score': ats_data['score'],
+                    'matched_keywords': ats_data['matched'],
+                    'missing_keywords': ats_data['missing'],
+                    'resume_pdf': resume_pdf,
+                    'tailored_resume_tex': tailored_resume_tex,
+                    'is_latex_based': True,
+                    'cover_letter_pdf': cover_letter_pdf,
+                    'cover_letter_docx': cover_letter_docx,
+                    'diff_json': diff_json,
+                    'ai_changes': ai_changes,
+                    'token_usage': token_usage,
+                    'created_at': timezone.now().isoformat(),
+                }
+            else:
+                plain_text_payload = AIService.optimize_plain_text_resume(
+                    resume_text=source_resume_data['plain_text'],
+                    job_data=job_data,
+                    user_profile=user_profile,
+                )
+                updated_resume_text = plain_text_payload['updated_resume_text']
+                application_payload = AIService.generate_application_documents(
+                    user_profile=user_profile,
+                    tailored_resume_text=updated_resume_text,
+                    job_data=job_data,
+                )
+                ats_data = AIService.calculate_ats_score_from_text(
+                    job_description=job_description,
+                    tailored_resume_text=updated_resume_text,
+                )
+                diff_json = AIService.generate_diff(
+                    original_text=source_resume_data['plain_text'],
+                    updated_text=updated_resume_text,
+                )
+                token_usage = {
+                    'plain_text_optimization': plain_text_payload.get('token_usage'),
+                    'application_documents': application_payload.get('token_usage'),
+                }
+                ai_changes = list(plain_text_payload['changes_made'])
+
+                resume_pdf_buffer = PDFService.generate_text_pdf(
+                    title='',
+                    content=updated_resume_text,
+                )
+                cover_letter_pdf, cover_letter_docx = self._build_cover_letter_exports(
+                    content=application_payload['cover_letter_text'],
+                    user_profile=user_profile,
+                    ai_changes=ai_changes,
+                )
+                document_payload = {
+                    'id': 0,
+                    'job': job_payload,
+                    'source_resume': source_resume.id if source_resume else None,
+                    'tailored_resume_text': updated_resume_text,
+                    'cover_letter_text': application_payload['cover_letter_text'],
+                    'email_subject': application_payload['email_subject'],
+                    'email_body': application_payload['email_body'],
+                    'ats_score': ats_data['score'],
+                    'matched_keywords': ats_data['matched'],
+                    'missing_keywords': ats_data['missing'],
+                    'resume_pdf': self._buffer_to_data_url(resume_pdf_buffer, mime_type='application/pdf'),
+                    'tailored_resume_tex': None,
+                    'is_latex_based': False,
+                    'cover_letter_pdf': cover_letter_pdf,
+                    'cover_letter_docx': cover_letter_docx,
+                    'diff_json': diff_json,
+                    'ai_changes': ai_changes,
+                    'token_usage': token_usage,
+                    'created_at': timezone.now().isoformat(),
+                }
         except Resume.DoesNotExist:
             return self._error_response(
                 message='Selected resume was not found.',
@@ -738,9 +741,4 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        return Response(
-            {
-                'document': response_serializer.data,
-            },
-            status=status.HTTP_201_CREATED,
-        )
+        return Response({'document': document_payload}, status=status.HTTP_201_CREATED)

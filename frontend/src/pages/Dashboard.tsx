@@ -188,7 +188,8 @@ export const Dashboard: React.FC = () => {
       <Sidebar />
       
       <div className="flex-1 p-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-8">Dashboard</h1>
+        <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>
+        <p className="text-gray-600 mb-8">Upload and manage your base resume `.tex` file here.</p>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Profile Section */}

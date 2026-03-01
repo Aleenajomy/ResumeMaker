@@ -14,7 +14,7 @@ export const Sidebar: React.FC = () => {
 
   const menuItems = [
     { icon: FileText, label: 'Resume Optimizer', path: '/' },
-    { icon: User, label: 'Profile', path: '/dashboard' },
+    { icon: User, label: 'Dashboard', path: '/dashboard' },
   ];
 
   return (

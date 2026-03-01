@@ -75,6 +75,7 @@ export interface Job {
   id: number;
   source_resume: number | null;
   company_name: string;
+  company_location?: string;
   job_title: string;
   job_description: string;
   requirements: string;
@@ -103,6 +104,7 @@ export interface GeneratedDocument {
   tailored_resume_tex: string | null;
   is_latex_based: boolean;
   cover_letter_pdf: string | null;
+  cover_letter_docx: string | null;
   diff_json: DiffToken[] | null;
   ai_changes: string[];
   token_usage: TokenUsage | null;

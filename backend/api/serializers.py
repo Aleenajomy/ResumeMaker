@@ -210,8 +210,8 @@ class GeneratedDocumentListSerializer(serializers.ModelSerializer):
 
 class ResumeOptimizerRequestSerializer(serializers.Serializer):
     resume_id = serializers.IntegerField(required=False)
-    resume_file = serializers.FileField(required=False, allow_null=True, write_only=True)
     company_name = serializers.CharField(max_length=255)
+    company_location = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
     job_title = serializers.CharField(max_length=255)
     job_description = serializers.CharField()
     requirements = serializers.CharField(required=False, allow_blank=True, default='')
@@ -231,13 +231,3 @@ class ResumeOptimizerRequestSerializer(serializers.Serializer):
             raise serializers.ValidationError("Job description must be at least 50 characters")
         return value
 
-    def validate_resume_file(self, value):
-        if value and value.size > 10 * 1024 * 1024:
-            raise serializers.ValidationError("Resume file size cannot exceed 10MB")
-        if value:
-            filename = value.name.lower()
-            if not filename.endswith('.tex'):
-                raise serializers.ValidationError(
-                    "Exact structure mode requires a LaTeX (.tex) resume file."
-                )
-        return value

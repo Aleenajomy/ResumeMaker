@@ -3,6 +3,7 @@ from unittest.mock import patch
 from django.test import SimpleTestCase
 
 from .ai_service import AIService
+from .pdf_service import PDFService
 
 
 class PlainTextSectionLockTests(SimpleTestCase):
@@ -113,3 +114,99 @@ class LatexTemplatePlaceholderTests(SimpleTestCase):
         self.assertNotIn("{{HEADLINE}}", rendered)
         self.assertNotIn("{{SUMMARY}}", rendered)
         self.assertNotIn("{{SKILLS}}", rendered)
+
+
+class CoverLetterExportTests(SimpleTestCase):
+    def test_generate_cover_letter_docx(self):
+        content = (
+            "Dear Hiring Manager,\n\n"
+            "I am excited to apply for the Backend Developer role.\n\n"
+            "Thank you for your time and consideration."
+        )
+        docx_buffer = PDFService.generate_cover_letter_docx(
+            content=content,
+            name="Aleena Jomy",
+        )
+
+        raw = docx_buffer.read()
+        self.assertTrue(len(raw) > 100)
+        self.assertTrue(raw.startswith(b"PK"))
+
+
+class ApplicationDocsPromptTests(SimpleTestCase):
+    @patch('api.ai_service.AIService._call_openai_with_retry')
+    def test_generate_application_documents_includes_day6_cover_letter_instructions(self, mock_ai_call):
+        mock_ai_call.return_value = (
+            {
+                'cover_letter_text': 'A' * 260,
+                'email_subject': 'Application for Backend Developer',
+                'email_body': 'Please find my application attached.',
+            },
+            {'prompt_tokens': 10, 'completion_tokens': 20, 'total_tokens': 30},
+        )
+
+        result = AIService.generate_application_documents(
+            user_profile={'full_name': 'Aleena Jomy'},
+            tailored_resume_text='Python Django APIs testing and backend engineering experience.',
+            job_data={
+                'company_name': 'Acme',
+                'job_title': 'Backend Developer',
+                'job_description': 'Build scalable APIs with Python and Django in a product team.',
+                'requirements': 'Collaboration and ownership.',
+            },
+        )
+
+        called_prompt = mock_ai_call.call_args.kwargs['prompt']
+        self.assertIn(
+            "Write a professional cover letter tailored to this job description based on the candidate resume.",
+            called_prompt,
+        )
+        self.assertIn("Length: 250-350 words.", called_prompt)
+        self.assertIn("Professional tone.", called_prompt)
+        self.assertIn("Generate a professional job application email.", called_prompt)
+        self.assertIn("Keep it concise but substantive (about 90-140 words) in 2-3 short paragraphs.", called_prompt)
+        self.assertIn('Subject line included via the "email_subject" field.', called_prompt)
+        self.assertIn("Subject: Application for Backend Developer", result['cover_letter_text'])
+        self.assertIn("Dear Hiring Manager,", result['cover_letter_text'])
+        self.assertIn("Sincerely,\nAleena Jomy", result['cover_letter_text'])
+        self.assertTrue(result['email_body'].startswith("Dear Hiring Team,"))
+        self.assertIn("Warm regards,", result['email_body'])
+        self.assertIn("Acme", result['email_subject'])
+        self.assertGreaterEqual(len(result['email_body'].split()), 70)
+
+
+class CoverLetterTemplateFormattingTests(SimpleTestCase):
+    def test_format_cover_letter_template_uses_fixed_structure(self):
+        formatted = AIService.format_cover_letter_template(
+            user_profile={
+                'full_name': 'Aleena Jomy',
+                'location': 'Kannur, Kerala, India',
+                'email': 'aleenajomy4@gmail.com',
+                'phone': '+91-8547139184',
+                'linkedin_url': 'linkedin.com/in/aleena-jomy',
+                'github_url': 'github.com/Aleenajomy',
+            },
+            job_data={
+                'company_name': 'SMARTHMS & SOLUTIONS (P) Ltd',
+                'job_title': 'Software Developer - Fresher',
+                'company_location': 'Technopark, Kerala',
+            },
+            body_text=(
+                "Dear Hiring Manager,\n\n"
+                "I am excited to apply for this role.\n\n"
+                "Sincerely,\nAleena Jomy"
+            ),
+        )
+
+        self.assertIn("Kannur, Kerala, India", formatted)
+        self.assertIn("Email: aleenajomy4@gmail.com", formatted)
+        self.assertIn("Phone: +91-8547139184", formatted)
+        self.assertIn("LinkedIn: linkedin.com/in/aleena-jomy", formatted)
+        self.assertIn("GitHub: github.com/Aleenajomy", formatted)
+        self.assertIn("Hiring Manager", formatted)
+        self.assertIn("SMARTHMS & SOLUTIONS (P) Ltd", formatted)
+        self.assertIn("Technopark, Kerala", formatted)
+        self.assertIn("Subject: Application for Software Developer - Fresher", formatted)
+        self.assertIn("Dear Hiring Manager,", formatted)
+        self.assertTrue(formatted.strip().endswith("Sincerely,\nAleena Jomy"))
+        self.assertNotIn("Dear Hiring Manager,\n\nDear Hiring Manager", formatted)
