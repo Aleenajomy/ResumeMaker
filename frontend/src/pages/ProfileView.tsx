@@ -7,7 +7,7 @@ export const ProfileView: React.FC = () => {
   const [profile, setProfile] = useState<any>(null);
   const [resumes, setResumes] = useState<any[]>([]);
   const [certifications, setCertifications] = useState<any[]>([]);
-  const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+  const backendUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '');
 
   useEffect(() => {
     loadData();
@@ -20,7 +20,6 @@ export const ProfileView: React.FC = () => {
         resumeService.list(),
         certificationService.list(),
       ]);
-      console.log('Resumes:', resumesRes.data);
       setProfile(profileRes.data);
       setResumes(resumesRes.data.results || resumesRes.data || []);
       setCertifications(certsRes.data.results || certsRes.data || []);
@@ -78,7 +77,7 @@ export const ProfileView: React.FC = () => {
                   <Linkedin size={18} className="text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">LinkedIn</p>
-                    <a href={profile.linkedin_url} target="_blank" className="font-medium text-blue-600 hover:underline">
+                    <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 hover:underline">
                       View Profile
                     </a>
                   </div>
@@ -89,7 +88,7 @@ export const ProfileView: React.FC = () => {
                   <Github size={18} className="text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">GitHub</p>
-                    <a href={profile.github_url} target="_blank" className="font-medium text-blue-600 hover:underline">
+                    <a href={profile.github_url} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 hover:underline">
                       View Profile
                     </a>
                   </div>
@@ -100,7 +99,7 @@ export const ProfileView: React.FC = () => {
                   <Globe size={18} className="text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">Portfolio</p>
-                    <a href={profile.portfolio_url} target="_blank" className="font-medium text-blue-600 hover:underline">
+                    <a href={profile.portfolio_url} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 hover:underline">
                       Visit Website
                     </a>
                   </div>
@@ -164,6 +163,7 @@ export const ProfileView: React.FC = () => {
                       <a
                         href={href}
                         target="_blank"
+                        rel="noopener noreferrer"
                         className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                       >
                         View Resume File
@@ -221,6 +221,7 @@ export const ProfileView: React.FC = () => {
                         <a
                           href={cert.credential_url}
                           target="_blank"
+                          rel="noopener noreferrer"
                           className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
                         >
                           View URL
@@ -230,6 +231,7 @@ export const ProfileView: React.FC = () => {
                         <a
                           href={cert.media_file.startsWith('http') ? cert.media_file : `${backendUrl}${cert.media_file}`}
                           target="_blank"
+                          rel="noopener noreferrer"
                           className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
                         >
                           View File

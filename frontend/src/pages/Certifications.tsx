@@ -18,6 +18,7 @@ export const Certifications: React.FC = () => {
   const [certifications, setCertifications] = useState<Certification[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const backendUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '');
   const [formData, setFormData] = useState<Certification>({
     title: '',
     issuer: '',
@@ -35,7 +36,6 @@ export const Certifications: React.FC = () => {
   const loadCertifications = async () => {
     try {
       const response = await certificationService.list();
-      console.log('Certifications:', response.data);
       setCertifications(response.data.results || response.data || []);
     } catch (error) {
       console.error('Error loading certifications:', error);
@@ -147,6 +147,7 @@ export const Certifications: React.FC = () => {
                           <a
                             href={cert.credential_url}
                             target="_blank"
+                            rel="noopener noreferrer"
                             className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
                           >
                             View URL
@@ -154,8 +155,9 @@ export const Certifications: React.FC = () => {
                         )}
                         {typeof cert.media_file === 'string' && cert.media_file && (
                           <a
-                            href={cert.media_file.startsWith('http') ? cert.media_file : `http://localhost:8000${cert.media_file}`}
+                            href={cert.media_file.startsWith('http') ? cert.media_file : `${backendUrl}${cert.media_file}`}
                             target="_blank"
+                            rel="noopener noreferrer"
                             className="px-3 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
                           >
                             View File

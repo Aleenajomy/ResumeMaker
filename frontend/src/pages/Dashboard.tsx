@@ -155,15 +155,25 @@ export const Dashboard: React.FC = () => {
 
     setLoading(true);
     try {
-      // Delete existing resumes first
-      for (const resume of resumes) {
-        await resumeService.delete(resume.id);
-      }
-      
-      // Upload new resume
+      // Upload first, then delete previous resumes to avoid data loss if upload fails.
+      const existingResumeIds = resumes.map((resume) => resume.id);
       await resumeService.upload(file);
+
+      const failedDeletes: number[] = [];
+      for (const resumeId of existingResumeIds) {
+        try {
+          await resumeService.delete(resumeId);
+        } catch {
+          failedDeletes.push(resumeId);
+        }
+      }
+
       await loadResumes();
-      alert('Resume uploaded successfully!');
+      if (failedDeletes.length > 0) {
+        alert('Resume uploaded, but some old resumes could not be deleted. You can remove them manually.');
+      } else {
+        alert('Resume uploaded successfully!');
+      }
     } catch (error: any) {
       alert(error.response?.data?.error || 'Error uploading resume');
     } finally {
@@ -342,7 +352,6 @@ export const Dashboard: React.FC = () => {
                           const url = filePath.startsWith('http')
                             ? filePath
                             : `${backendUrl}${filePath}`;
-                          console.log('Opening URL:', url);
                           window.open(url, '_blank');
                         }}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded"

@@ -1,92 +1,102 @@
 # ResumeMaker
 
-Simple ATS Resume Maker focused on one clean flow:
+ResumeMaker is a full-stack ATS resume assistant that generates a job-specific application package from your base resume.
+
+It produces:
 - Tailored resume PDF
-- Tailored cover letter PDF
+- Tailored cover letter (PDF + DOCX)
 - Copy-ready professional email template
+- ATS score, matched/missing keywords, and change diff
 
-## Scope Rules
-- AI can modify only headline, summary, and skills.
-- Experience, projects, and education must remain unchanged.
+## What Makes This Version Different
 
-## Current Primary Flow
-1. Login
-2. Open Resume Optimizer
-3. Paste job description (and optional requirements)
-4. Select existing `.tex` resume or upload one
-5. Generate outputs
-6. Download resume PDF and cover letter PDF
-7. Copy email template
+This project runs in **LaTeX-first exact-structure mode** for the primary flow:
+- Input resume for optimization must be a `.tex` file uploaded from Dashboard.
+- AI edits only these sections:
+  - Header headline (line under name, if present)
+  - Summary
+  - Skills
+- Experience, Projects, and Education are intentionally preserved.
 
 Primary endpoint:
 - `POST /api/resume-optimizer/generate/`
 
-## Template Engine (Exact Structure)
-- Optimizer now runs in LaTeX-first exact-structure mode.
-- Resume source for generation must be `.tex`.
-- If your LaTeX contains placeholders below, server-side template injection is used:
-  - `{{HEADLINE}}`
-  - `{{SUMMARY}}`
-  - `{{SKILLS}}`
-- Base template provided at:
-  - `backend/templates/resume_template.tex`
+## End-to-End Flow
 
-## Cover Letter Generator
-- Cover letter prompt now enforces:
-  - tailored to job description + candidate resume
-  - professional tone
-  - 250-350 words
-- Cover letter output is now wrapped in a fixed professional template format:
-  - location/contact header
-  - month/year line
-  - hiring manager block
-  - subject line
-  - greeting/body/sign-off
-- Output options:
-  - PDF (via LaTeX compilation, with server-side fallback PDF if compile fails)
-  - DOCX (editable, generated via `python-docx`)
-- Optimizer response now includes:
-  - `cover_letter_pdf`
-  - `cover_letter_docx`
+1. Register/login.
+2. Open **Dashboard** and upload your base `.tex` resume.
+3. Fill profile details (name, contact, links, summary, skills).
+4. Open **Resume Optimizer**.
+5. Add company details + job description (+ optional requirements).
+6. Select the uploaded `.tex` resume.
+7. Generate documents.
+8. Download resume PDF, cover letter PDF/DOCX, and copy the generated email.
 
-## Email Template Logic
-- Email prompt now enforces:
-  - professional job application email
-  - short and crisp content
-  - subject line via `email_subject`
-- Backend normalizes email body to start with:
-  - `Dear Hiring Manager,`
-- Frontend shows a clean single email template box:
-  - `Subject: ...` + body
-  - copy-ready with one button
+## Template Behavior
 
-## Tech Stack (Current)
+If your LaTeX resume contains placeholders, backend template injection is applied:
+- `{{HEADLINE}}`
+- `{{SUMMARY}}`
+- `{{SKILLS}}`
+
+Base template file:
+- `backend/templates/resume_template.tex`
+
+If placeholders are absent, section-based editing is used while preserving layout/commands as much as possible.
+
+## Generated Outputs
+
+### Resume
+- Tailored LaTeX text (`tailored_resume_tex` in response)
+- Resume PDF (`resume_pdf`)
+- ATS score + matched/missing keywords
+- Diff tokens + change summary (`diff_json`, `ai_changes`)
+
+### Cover Letter
+- Tailored body content (professional, 250-350 words target)
+- Wrapped into a fixed professional template
+- Exported as:
+  - PDF (`cover_letter_pdf`) via LaTeX when available
+  - DOCX (`cover_letter_docx`) for editing
+
+### Email Template
+- Returns:
+  - `email_subject`
+  - `email_body`
+- Frontend shows it as a single copy-ready block.
+
+## Tech Stack
 
 Backend:
-- Python + Django 4.2
-- Django REST Framework
+- Django 4.2 + Django REST Framework
 - JWT auth (`djangorestframework-simplejwt`)
 - PostgreSQL (`psycopg2-binary`)
-- CORS support (`django-cors-headers`)
-- OpenAI SDK (`openai`) with OpenAI/Groq-compatible base URL support
-- PDF/DOCX tooling: `pypdf`, `python-docx`, `reportlab`
-- Async jobs: Celery + Redis
-- Runtime/deploy libs: `gunicorn`, `whitenoise`
-- Testing tools: `pytest`, `pytest-django`
+- OpenAI SDK (`openai`) with OpenAI-compatible base URL support (works with Groq-compatible endpoint)
+- PDF/DOCX: `pypdf`, `reportlab`, `python-docx`
+- Celery + Redis configured for async tasks
 
 Frontend:
 - React 18 + TypeScript + Vite
-- React Router (`react-router-dom`)
+- React Router
 - Axios
-- Tailwind CSS (+ PostCSS + Autoprefixer)
-- UI libraries in use: `framer-motion`, `lucide-react`, `react-dropzone`
+- Tailwind CSS
 
 System tools:
-- LaTeX compiler support (`tectonic`, `xelatex`, or `pdflatex`)
+- LaTeX compiler (`tectonic`, `xelatex`, or `pdflatex`) for server-side compile
+
+## Prerequisites
+
+- Python 3.10+
+- Node.js 18+ and npm
+- PostgreSQL running locally
+- OpenAI or Groq API key
+- Optional but recommended: Redis (if using Celery workers)
+- Optional but recommended: LaTeX compiler installed for higher-quality PDF output
 
 ## Local Setup
 
-### Backend
+### 1) Backend
+
 ```bash
 cd backend
 python -m venv venv
@@ -94,27 +104,76 @@ venv\Scripts\activate
 pip install -r requirements.txt
 copy .env.example .env
 python manage.py migrate
+python manage.py createsuperuser
 python manage.py runserver
 ```
 
-### Frontend
+Backend runs at:
+- `http://localhost:8000`
+
+### 2) Frontend
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-Frontend URL:
+Frontend runs at:
 - `http://localhost:5173`
 
-Backend URL:
-- `http://localhost:8000`
-
 ## Environment Variables
-Use `backend/.env.example` as reference. Core variables:
+
+### Backend (`backend/.env`)
+Use `backend/.env.example` and set at minimum:
 - `SECRET_KEY`
 - `DEBUG`
+- `ALLOWED_HOSTS`
 - `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`
-- `OPENAI_API_KEY` or `GROQ_API_KEY`
-- `OPENAI_BASE_URL` (if using compatible provider endpoint)
+- `OPENAI_API_KEY` **or** `GROQ_API_KEY`
+- `OPENAI_BASE_URL` (required for Groq-compatible endpoint usage)
 - `AI_MODEL`
+- `REDIS_URL` (if using Celery)
+- `CORS_ALLOWED_ORIGINS`
+
+### Frontend (`frontend/.env`)
+- `VITE_API_BASE_URL=http://localhost:8000`
+
+## API Route Map (Main)
+
+Auth:
+- `POST /api/auth/register/`
+- `POST /api/token/`
+- `POST /api/token/refresh/`
+
+Profile:
+- `GET /api/profile/me/`
+- `PUT/PATCH /api/profile/update_me/`
+
+Resume + Optimization:
+- `POST /api/resumes/` (upload `.tex` recommended for current flow)
+- `GET /api/resumes/`
+- `POST /api/resume-optimizer/generate/`
+
+Supporting routes:
+- `/api/certifications/`
+- `/api/job-descriptions/`
+- `/api/optimized-resumes/`
+- `/api/cover-letters/`
+- `/api/jobs/`
+- `/api/generated-documents/`
+
+## Troubleshooting
+
+- `No dashboard .tex resume found`
+  - Upload a `.tex` resume in Dashboard before generating.
+
+- `Selected resume is not LaTeX (.tex)`
+  - The optimizer endpoint in current primary flow requires `.tex` input.
+
+- `Job description must be at least 50 characters`
+  - Provide fuller JD content.
+
+- `No LaTeX compiler found`
+  - Install `tectonic`, `xelatex`, or `pdflatex`, or set `LATEX_COMPILER_PATH`.
+  - If compile fails, backend falls back to text-based PDF where supported.
