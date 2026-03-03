@@ -5,11 +5,7 @@ Simple ATS Resume Maker focused on one clean flow:
 - Tailored cover letter PDF
 - Copy-ready professional email template
 
-## Day 1 Scope Freeze
-Day 1 MVP scope is finalized in:
-- [docs/day1_mvp_scope.md](docs/day1_mvp_scope.md)
-
-Key rule:
+## Scope Rules
 - AI can modify only headline, summary, and skills.
 - Experience, projects, and education must remain unchanged.
 
@@ -25,7 +21,7 @@ Key rule:
 Primary endpoint:
 - `POST /api/resume-optimizer/generate/`
 
-## Day 5 Template Engine (Exact Structure)
+## Template Engine (Exact Structure)
 - Optimizer now runs in LaTeX-first exact-structure mode.
 - Resume source for generation must be `.tex`.
 - If your LaTeX contains placeholders below, server-side template injection is used:
@@ -35,7 +31,7 @@ Primary endpoint:
 - Base template provided at:
   - `backend/templates/resume_template.tex`
 
-## Day 6 Cover Letter Generator
+## Cover Letter Generator
 - Cover letter prompt now enforces:
   - tailored to job description + candidate resume
   - professional tone
@@ -53,7 +49,7 @@ Primary endpoint:
   - `cover_letter_pdf`
   - `cover_letter_docx`
 
-## Day 7 Email Template Logic
+## Email Template Logic
 - Email prompt now enforces:
   - professional job application email
   - short and crisp content
@@ -122,7 +118,3 @@ Use `backend/.env.example` as reference. Core variables:
 - `OPENAI_API_KEY` or `GROQ_API_KEY`
 - `OPENAI_BASE_URL` (if using compatible provider endpoint)
 - `AI_MODEL`
-
-## Day 2-4 Execution Tickets
-Defined in:
-- [docs/day1_mvp_scope.md](docs/day1_mvp_scope.md)
