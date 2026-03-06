@@ -8,10 +8,30 @@ logger = logging.getLogger(__name__)
 
 COMPILER_PRIORITY = ('tectonic', 'xelatex', 'lualatex', 'pdflatex')
 COMPILER_PATH_HINTS: dict[str, tuple[str, ...]] = {
-    'tectonic': ('/usr/local/bin/tectonic', '/usr/bin/tectonic'),
-    'xelatex': ('/usr/local/bin/xelatex', '/usr/bin/xelatex'),
-    'lualatex': ('/usr/local/bin/lualatex', '/usr/bin/lualatex'),
-    'pdflatex': ('/usr/local/bin/pdflatex', '/usr/bin/pdflatex'),
+    'tectonic': (
+        '/usr/local/bin/tectonic',
+        '/usr/bin/tectonic',
+        '/nix/var/nix/profiles/default/bin/tectonic',
+        '/etc/profiles/per-user/root/bin/tectonic',
+    ),
+    'xelatex': (
+        '/usr/local/bin/xelatex',
+        '/usr/bin/xelatex',
+        '/nix/var/nix/profiles/default/bin/xelatex',
+        '/etc/profiles/per-user/root/bin/xelatex',
+    ),
+    'lualatex': (
+        '/usr/local/bin/lualatex',
+        '/usr/bin/lualatex',
+        '/nix/var/nix/profiles/default/bin/lualatex',
+        '/etc/profiles/per-user/root/bin/lualatex',
+    ),
+    'pdflatex': (
+        '/usr/local/bin/pdflatex',
+        '/usr/bin/pdflatex',
+        '/nix/var/nix/profiles/default/bin/pdflatex',
+        '/etc/profiles/per-user/root/bin/pdflatex',
+    ),
 }
 
 
@@ -34,7 +54,7 @@ def _resolve_compiler_by_name(command: str) -> str | None:
 
     for hinted_path in COMPILER_PATH_HINTS.get(command.lower(), ()):
         candidate = Path(hinted_path)
-        if candidate.is_file():
+        if candidate.is_file() and os.access(candidate, os.X_OK):
             return str(candidate)
 
     return None
@@ -77,6 +97,13 @@ def detect_latex_compiler() -> tuple[str, str] | None:
         compiler_path = _resolve_compiler_by_name(compiler)
         if compiler_path:
             return compiler_path, compiler
+
+    logger.error(
+        "No LaTeX compiler detected. PATH=%s LATEX_COMPILER=%s LATEX_COMPILER_PATH=%s",
+        os.getenv('PATH', ''),
+        _clean_env_value(os.getenv('LATEX_COMPILER')),
+        _clean_env_value(os.getenv('LATEX_COMPILER_PATH')),
+    )
     return None
 
 
