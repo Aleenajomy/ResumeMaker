@@ -7,6 +7,12 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 COMPILER_PRIORITY = ('tectonic', 'xelatex', 'lualatex', 'pdflatex')
+COMPILER_PATH_HINTS: dict[str, tuple[str, ...]] = {
+    'tectonic': ('/usr/local/bin/tectonic', '/usr/bin/tectonic'),
+    'xelatex': ('/usr/local/bin/xelatex', '/usr/bin/xelatex'),
+    'lualatex': ('/usr/local/bin/lualatex', '/usr/bin/lualatex'),
+    'pdflatex': ('/usr/local/bin/pdflatex', '/usr/bin/pdflatex'),
+}
 
 
 def _clean_env_value(value: str | None) -> str:
@@ -21,6 +27,19 @@ def _compiler_kind(command_or_path: str) -> str:
     return normalized or 'unknown'
 
 
+def _resolve_compiler_by_name(command: str) -> str | None:
+    resolved_from_path = shutil.which(command)
+    if resolved_from_path:
+        return resolved_from_path
+
+    for hinted_path in COMPILER_PATH_HINTS.get(command.lower(), ()):
+        candidate = Path(hinted_path)
+        if candidate.is_file():
+            return str(candidate)
+
+    return None
+
+
 def _resolve_compiler_target(value: str) -> str | None:
     target = _clean_env_value(value)
     if not target:
@@ -30,7 +49,7 @@ def _resolve_compiler_target(value: str) -> str | None:
     if expanded.is_file():
         return str(expanded)
 
-    return shutil.which(target)
+    return _resolve_compiler_by_name(target)
 
 
 def detect_latex_compiler() -> tuple[str, str] | None:
@@ -55,7 +74,7 @@ def detect_latex_compiler() -> tuple[str, str] | None:
         )
 
     for compiler in COMPILER_PRIORITY:
-        compiler_path = shutil.which(compiler)
+        compiler_path = _resolve_compiler_by_name(compiler)
         if compiler_path:
             return compiler_path, compiler
     return None

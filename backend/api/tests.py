@@ -1,10 +1,12 @@
 from io import BytesIO
+from pathlib import Path
 from unittest.mock import patch
 
 from django.test import override_settings
 from django.test import SimpleTestCase
 
 from .ai_service import AIService
+from . import latex_compiler as latex_compiler_module
 from .pdf_service import PDFService
 from .views import ResumeOptimizerViewSet
 
@@ -259,6 +261,27 @@ class StrictLatexModeTests(SimpleTestCase):
             )
         )
         self.assertTrue(any('fallback text PDF' in change for change in changes))
+
+
+class LatexCompilerDetectionTests(SimpleTestCase):
+    @patch.dict('os.environ', {'LATEX_COMPILER': '', 'LATEX_COMPILER_PATH': ''}, clear=False)
+    @patch('api.latex_compiler.shutil.which', return_value=None)
+    def test_detect_latex_compiler_uses_absolute_path_hints_when_path_is_missing(self, _mock_which):
+        fake_tectonic = '/usr/local/bin/tectonic'
+
+        with patch.object(
+            latex_compiler_module,
+            'COMPILER_PATH_HINTS',
+            {'tectonic': (fake_tectonic,)},
+        ), patch(
+            'api.latex_compiler.Path.is_file',
+            return_value=True,
+        ):
+            detected = latex_compiler_module.detect_latex_compiler()
+
+        self.assertIsNotNone(detected)
+        self.assertEqual(detected[1], 'tectonic')
+        self.assertEqual(Path(detected[0]).name, 'tectonic')
 
 
 class ApplicationDocsPromptTests(SimpleTestCase):

@@ -1,15 +1,16 @@
 FROM python:3.11-slim
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Tectonic LaTeX compiler
-RUN curl --proto '=https' --tlsv1.2 -sSf https://drop-sh.fullyjustified.net | sh
-
-ENV PATH="/root/.cargo/bin:${PATH}"
+RUN set -eux; \
+    curl --proto '=https' --tlsv1.2 -sSf https://drop-sh.fullyjustified.net | sh; \
+    install -m 0755 /root/.cargo/bin/tectonic /usr/local/bin/tectonic; \
+    /usr/local/bin/tectonic --version
 
 WORKDIR /app
 
