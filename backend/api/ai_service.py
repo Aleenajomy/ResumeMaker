@@ -255,6 +255,23 @@ class AIService:
         return value.strip()[:max_chars]
 
     @staticmethod
+    def _extract_latex_document_body(latex_text: str) -> str:
+        normalized = str(latex_text or '').replace('\r\n', '\n').replace('\r', '\n')
+        if not normalized.strip():
+            return ''
+
+        start_match = re.search(r'\\begin\s*\{\s*document\s*\}', normalized, flags=re.IGNORECASE)
+        if not start_match:
+            return normalized
+
+        body_start = start_match.end()
+        remaining = normalized[body_start:]
+        end_match = re.search(r'\\end\s*\{\s*document\s*\}', remaining, flags=re.IGNORECASE)
+        if not end_match:
+            return remaining
+        return remaining[:end_match.start()]
+
+    @staticmethod
     def _extract_json_payload(content: str) -> Dict[str, Any]:
         if not content:
             raise ValueError("Empty response from AI service")
@@ -1220,21 +1237,50 @@ The "email_body" must start with "Dear Hiring Team," and contain only the email 
         if not latex_text:
             return ''
 
-        text = re.sub(r'(?<!\\)%.*', ' ', latex_text)
-        text = re.sub(r'\\begin\{[^}]+\}', ' ', text)
+        text = AIService._extract_latex_document_body(latex_text)
+        if not text.strip():
+            return ''
+
+        text = re.sub(r'(?<!\\)%.*', ' ', text)
+        text = text.replace(r'\&', '&').replace(r'\%', '%').replace(r'\$', '$')
+        text = text.replace(r'\#', '#').replace(r'\_', '_').replace(r'\~', '~')
+        text = text.replace(r'\^', '^')
+        text = text.replace('\\\\', '\n')
+        text = text.replace('$|$', '|')
+        text = re.sub(r'\$(.*?)\$', r' \1 ', text)
+
+        text = re.sub(
+            r'\\href\{[^{}]*\}\{([^{}]*)\}',
+            r' \1 ',
+            text,
+        )
+        text = re.sub(r'\\url\{([^{}]*)\}', r' \1 ', text)
+        text = re.sub(r'\\item(?:\[[^\]]*\])?', '\n- ', text)
+        text = re.sub(
+            r'\\(?:sub)*section\*?(?:\[[^\]]*\])?\{([^{}]*)\}',
+            r'\n\1\n',
+            text,
+        )
+        text = re.sub(r'\\begin\{[^}]+\}(?:\[[^\]]*\])?', ' ', text)
         text = re.sub(r'\\end\{[^}]+\}', ' ', text)
 
-        for _ in range(4):
-            text = re.sub(
-                r'\\[a-zA-Z]+\*?(?:\[[^\]]*\])?\{([^{}]*)\}',
+        for _ in range(8):
+            updated = re.sub(
+                r'\\[a-zA-Z@]+\*?(?:\[[^\]]*\])?\{([^{}]*)\}',
                 r' \1 ',
                 text,
             )
+            if updated == text:
+                break
+            text = updated
 
-        text = re.sub(r'\\[a-zA-Z]+\*?(?:\[[^\]]*\])?', ' ', text)
+        text = re.sub(r'\\[a-zA-Z@]+\*?(?:\[[^\]]*\])?', ' ', text)
+        text = re.sub(r'\[[^\]\n]{1,160}\]', ' ', text)
         text = text.replace('{', ' ').replace('}', ' ')
-        text = re.sub(r'\s+', ' ', text).strip()
-        return text
+        text = re.sub(r'[ \t]+', ' ', text)
+        text = re.sub(r'[ \t]*\n[ \t]*', '\n', text)
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        return text.strip()
 
     @staticmethod
     def optimize_latex_resume(

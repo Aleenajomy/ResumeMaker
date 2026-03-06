@@ -126,6 +126,32 @@ class LatexTemplatePlaceholderTests(SimpleTestCase):
         self.assertIn("\n\\section{Skills}", formatted)
         self.assertIn("\n\\end{document}", formatted)
 
+    def test_latex_to_plain_text_ignores_preamble_macro_noise(self):
+        latex_text = r"""
+\documentclass{article}
+\newcommand{\resumeSubheading}[4]{
+  \item
+  \begin{tabular*}{1.0\textwidth}[t]{l@{\extracolsep{\fill}}r}
+  \textbf{#1} & #2 \\
+  \textit{#3} & \textit{#4} \\
+  \end{tabular*}\vspace{-6pt}
+}
+\begin{document}
+\section{Summary}
+Highly motivated and detail-oriented engineer.
+\resumeSubheading{Python Django Developer (Intern)}{Nov 2025 -- Jan 2026}{Zecser Business LLP}{Remote}
+\end{document}
+"""
+
+        plain = AIService.latex_to_plain_text(latex_text)
+
+        self.assertIn("Highly motivated and detail-oriented engineer.", plain)
+        self.assertIn("Python Django Developer (Intern)", plain)
+        self.assertIn("Nov 2025 -- Jan 2026", plain)
+        self.assertNotIn("#1", plain)
+        self.assertNotIn("newcommand", plain.lower())
+        self.assertNotIn("leftmargin", plain.lower())
+
 
 class CoverLetterExportTests(SimpleTestCase):
     def test_generate_cover_letter_docx(self):
