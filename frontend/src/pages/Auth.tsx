@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/api';
 
@@ -11,37 +12,63 @@ const defaultFormState = {
   passwordConfirm: '',
 };
 
+const getFirstString = (value: unknown): string | null => {
+  if (typeof value === 'string' && value.trim()) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const nested = getFirstString(item);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    for (const item of Object.values(value as Record<string, unknown>)) {
+      const nested = getFirstString(item);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+
+  return null;
+};
+
 const extractErrorMessage = (error: unknown): string => {
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status;
+    const data = error.response?.data;
+    const apiMessage = getFirstString(data);
+
+    if (apiMessage) {
+      const normalized = apiMessage.toLowerCase();
+      if (
+        status === 401 ||
+        normalized.includes('no active account') ||
+        normalized.includes('authentication failed')
+      ) {
+        return 'Unauthorized access. Please check your username and password.';
+      }
+      return apiMessage;
+    }
+
+    if (status === 401) {
+      return 'Unauthorized access. Please check your username and password.';
+    }
+    if (status === 400) {
+      return 'Invalid request. Please check your input and try again.';
+    }
+    if (status === 500) {
+      return 'Server error. Please try again later.';
+    }
+  }
+
   if (error instanceof Error && error.message) {
     return error.message;
-  }
-
-  if (typeof error !== 'object' || error === null) {
-    return 'Request failed. Please try again.';
-  }
-
-  const maybeResponse = error as {
-    response?: {
-      data?: unknown;
-    };
-  };
-
-  const data = maybeResponse.response?.data;
-  if (typeof data === 'string') {
-    return data;
-  }
-
-  if (typeof data === 'object' && data !== null) {
-    const entries = Object.values(data as Record<string, unknown>);
-    const first = entries[0];
-
-    if (Array.isArray(first) && first.length > 0) {
-      return String(first[0]);
-    }
-
-    if (typeof first === 'string') {
-      return first;
-    }
   }
 
   return 'Request failed. Please try again.';
@@ -76,6 +103,8 @@ export const Auth: React.FC = () => {
     }
 
     await authService.login(username, password);
+    setSuccessMessage('Login successful. Redirecting...');
+    await new Promise((resolve) => setTimeout(resolve, 500));
     navigate('/resume-optimizer', { replace: true });
   };
 
