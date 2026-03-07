@@ -217,6 +217,10 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
 LATEX_STRICT_MODE = get_bool_env('LATEX_STRICT_MODE', False)
 
+# Ensure log directory exists before FileHandler initializes.
+LOG_DIR = BASE_DIR / 'logs'
+os.makedirs(LOG_DIR, exist_ok=True)
+
 # Logging Configuration
 LOGGING = {
     'version': 1,
@@ -234,7 +238,7 @@ LOGGING = {
         },
         'file': {
             'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'logs' / 'django.log',
+            'filename': LOG_DIR / 'django.log',
             'formatter': 'verbose',
         },
     },
