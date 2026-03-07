@@ -177,13 +177,18 @@ export const Auth: React.FC = () => {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+            <label htmlFor="auth-username" className="block text-sm font-medium text-gray-700 mb-1">
+              Username
+            </label>
             <input
+              id="auth-username"
+              name="username"
               type="text"
               value={formState.username}
               onChange={updateField('username')}
+              autoComplete="username"
               required
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
@@ -191,11 +196,16 @@ export const Auth: React.FC = () => {
 
           {mode === 'register' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label htmlFor="auth-email" className="block text-sm font-medium text-gray-700 mb-1">
+                Email
+              </label>
               <input
+                id="auth-email"
+                name="email"
                 type="email"
                 value={formState.email}
                 onChange={updateField('email')}
+                autoComplete="email"
                 required
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -203,11 +213,16 @@ export const Auth: React.FC = () => {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label htmlFor="auth-password" className="block text-sm font-medium text-gray-700 mb-1">
+              Password
+            </label>
             <input
+              id="auth-password"
+              name="password"
               type="password"
               value={formState.password}
               onChange={updateField('password')}
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               required
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
@@ -215,13 +230,19 @@ export const Auth: React.FC = () => {
 
           {mode === 'register' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="auth-password-confirm"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Confirm Password
               </label>
               <input
+                id="auth-password-confirm"
+                name="passwordConfirm"
                 type="password"
                 value={formState.passwordConfirm}
                 onChange={updateField('passwordConfirm')}
+                autoComplete="new-password"
                 required
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />

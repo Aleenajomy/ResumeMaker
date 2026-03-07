@@ -177,14 +177,14 @@ Supporting routes:
 
 - `No LaTeX compiler found`
   - Install `tectonic`, `xelatex`, `lualatex`, or `pdflatex`.
-  - On Railway, set `LATEX_COMPILER=tectonic`.
+  - On Railway, set `LATEX_COMPILER=xelatex`.
   - If `LATEX_COMPILER_PATH` is set, make sure it is a valid path inside the Linux container (do not use Windows paths like `C:\...`).
   - If compile fails, backend falls back to text-based PDF where supported.
 
 - `LaTeX works locally but fails on Railway`
-  - Confirm `nixpacks.toml` includes `aptPkgs = ["tectonic"]`.
+  - Confirm `nixpacks.toml` includes `aptPkgs = ["texlive-xetex", "texlive-fonts-recommended", "texlive-latex-extra"]`.
   - In Railway variables:
-    - `LATEX_COMPILER=tectonic`
+    - `LATEX_COMPILER=xelatex`
     - `LATEX_COMPILER_PATH=` (empty, unless you provide a valid Linux path)
     - `LATEX_STRICT_MODE=True` (optional; fail fast instead of fallback PDF)
   - Redeploy and check logs for `Using LaTeX compiler: ...`.

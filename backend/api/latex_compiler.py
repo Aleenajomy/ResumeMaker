@@ -6,7 +6,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-COMPILER_PRIORITY = ('tectonic', 'xelatex', 'lualatex', 'pdflatex')
+COMPILER_PRIORITY = ('xelatex', 'tectonic', 'lualatex', 'pdflatex')
 COMPILER_PATH_HINTS: dict[str, tuple[str, ...]] = {
     'tectonic': (
         '/usr/local/bin/tectonic',
@@ -119,7 +119,7 @@ def compile_latex(tex_path: str, output_dir: str, timeout_seconds: int = 180) ->
     if not detected_compiler:
         raise RuntimeError(
             "No LaTeX compiler found (tried: tectonic, xelatex, lualatex, pdflatex). "
-            "For Railway, set LATEX_COMPILER=tectonic and ensure tectonic is installed."
+            "For Railway, set LATEX_COMPILER=xelatex and ensure xelatex is installed."
         )
     compiler_bin, compiler = detected_compiler
 

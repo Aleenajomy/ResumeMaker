@@ -5,16 +5,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Runtime deps + Tectonic for LaTeX PDF generation.
+# Runtime deps + XeLaTeX for LaTeX PDF generation.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    ca-certificates \
+    texlive-xetex \
+    texlive-fonts-recommended \
+    texlive-latex-extra \
     && rm -rf /var/lib/apt/lists/*
 
-RUN set -eux; \
-    curl --proto '=https' --tlsv1.2 -sSf https://drop-sh.fullyjustified.net | sh; \
-    install -m 0755 /root/.cargo/bin/tectonic /usr/local/bin/tectonic; \
-    /usr/local/bin/tectonic --version
+RUN xelatex --version
 
 COPY backend/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt

@@ -286,6 +286,7 @@ export const Home: React.FC = () => {
                   type="text"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
+                  autoComplete="off"
                   className="w-full p-3 border border-gray-300 rounded-lg"
                   placeholder="Google"
                 />
@@ -296,6 +297,7 @@ export const Home: React.FC = () => {
                   type="text"
                   value={companyLocation}
                   onChange={(e) => setCompanyLocation(e.target.value)}
+                  autoComplete="off"
                   className="w-full p-3 border border-gray-300 rounded-lg"
                   placeholder="Technopark, Kerala"
                 />
@@ -306,6 +308,7 @@ export const Home: React.FC = () => {
                   type="text"
                   value={jobTitle}
                   onChange={(e) => setJobTitle(e.target.value)}
+                  autoComplete="off"
                   className="w-full p-3 border border-gray-300 rounded-lg"
                   placeholder="Software Engineer"
                 />
@@ -317,6 +320,7 @@ export const Home: React.FC = () => {
               <textarea
                 value={jobDescription}
                 onChange={(e) => setJobDescription(e.target.value)}
+                autoComplete="off"
                 className="w-full h-56 p-3 border border-gray-300 rounded-lg"
                 placeholder="Paste the full job description..."
               />
@@ -329,6 +333,7 @@ export const Home: React.FC = () => {
               <textarea
                 value={requirements}
                 onChange={(e) => setRequirements(e.target.value)}
+                autoComplete="off"
                 className="w-full h-28 p-3 border border-gray-300 rounded-lg"
                 placeholder="Any structured requirements or key constraints..."
               />
