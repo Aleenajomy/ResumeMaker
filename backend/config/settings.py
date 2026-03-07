@@ -95,9 +95,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -177,6 +177,8 @@ SIMPLE_JWT = {
 DEFAULT_FRONTEND_ORIGIN = normalize_origin(
     get_env('FRONTEND_ORIGIN', 'https://resume-maker-three-omega.vercel.app')
 )
+if not DEFAULT_FRONTEND_ORIGIN or DEFAULT_FRONTEND_ORIGIN in PLACEHOLDER_ORIGINS:
+    DEFAULT_FRONTEND_ORIGIN = 'https://resume-maker-three-omega.vercel.app'
 
 CORS_ALLOW_ALL_ORIGINS = get_bool_env('CORS_ALLOW_ALL_ORIGINS', False)
 CORS_ALLOWED_ORIGINS = get_origin_list_env('CORS_ALLOWED_ORIGINS', DEFAULT_FRONTEND_ORIGIN)
