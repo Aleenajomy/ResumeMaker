@@ -197,9 +197,6 @@ if not OPENAI_BASE_URL and GROQ_API_KEY:
     OPENAI_BASE_URL = 'https://api.groq.com/openai/v1'
 AI_MODEL = get_env('AI_MODEL', 'llama-3.3-70b-versatile' if GROQ_API_KEY else 'gpt-4o-mini')
 
-if not OPENAI_API_KEY:
-    raise ValueError('OPENAI_API_KEY or GROQ_API_KEY environment variable is required')
-
 CELERY_BROKER_URL = get_env('REDIS_URL', 'redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = get_env('REDIS_URL', 'redis://localhost:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']

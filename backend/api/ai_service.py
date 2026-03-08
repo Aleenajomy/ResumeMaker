@@ -17,12 +17,8 @@ from openai import (
 
 logger = logging.getLogger(__name__)
 
-client_kwargs = {'api_key': settings.OPENAI_API_KEY}
-if settings.OPENAI_BASE_URL:
-    client_kwargs['base_url'] = settings.OPENAI_BASE_URL
-
-client = OpenAI(**client_kwargs)
 MODEL_NAME = settings.AI_MODEL
+client: Optional[OpenAI] = None
 
 
 class AIServiceUnavailableError(Exception):
@@ -145,6 +141,32 @@ class AIService:
         if re.match(r'^https?://', value, flags=re.IGNORECASE):
             return value
         return f"https://{value}"
+
+    @staticmethod
+    def _get_client() -> OpenAI:
+        global client
+        if client is not None:
+            return client
+
+        api_key = str(getattr(settings, 'OPENAI_API_KEY', '') or '').strip()
+        if not api_key:
+            raise AIServiceProviderError(
+                "AI provider API key is not configured on the server."
+            )
+
+        client_kwargs = {'api_key': api_key}
+        if settings.OPENAI_BASE_URL:
+            client_kwargs['base_url'] = settings.OPENAI_BASE_URL
+
+        try:
+            client = OpenAI(**client_kwargs)
+        except Exception as exc:
+            logger.error(f"Failed to initialize AI provider client: {str(exc)}")
+            raise AIServiceProviderError(
+                "AI provider client initialization failed. Verify API key and base URL."
+            )
+
+        return client
 
     @staticmethod
     def _clean_cover_letter_body(body_text: str) -> str:
@@ -342,6 +364,7 @@ class AIService:
         system_prompt: Optional[str] = None,
         return_usage: bool = False,
     ) -> Union[Dict[str, Any], Tuple[Dict[str, Any], Optional[Dict[str, int]]]]:
+        openai_client = AIService._get_client()
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -349,7 +372,7 @@ class AIService:
 
         for attempt in range(max_retries):
             try:
-                response = client.chat.completions.create(
+                response = openai_client.chat.completions.create(
                     model=MODEL_NAME,
                     messages=messages,
                     temperature=temperature,
