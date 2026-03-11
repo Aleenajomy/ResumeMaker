@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { authService } from '../services/api';
 
 type AuthMode = 'login' | 'register';
@@ -81,11 +82,15 @@ export const Auth: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
 
   const handleModeChange = (nextMode: AuthMode) => {
     setMode(nextMode);
     setErrorMessage('');
     setSuccessMessage('');
+    setShowPassword(false);
+    setShowPasswordConfirm(false);
   };
 
   const updateField =
@@ -118,6 +123,8 @@ export const Auth: React.FC = () => {
 
     setSuccessMessage('Registration successful. Please login.');
     setMode('login');
+    setShowPassword(false);
+    setShowPasswordConfirm(false);
     setFormState((prev) => ({
       ...prev,
       password: '',
@@ -216,16 +223,27 @@ export const Auth: React.FC = () => {
             <label htmlFor="auth-password" className="block text-sm font-medium text-gray-700 mb-1">
               Password
             </label>
-            <input
-              id="auth-password"
-              name="password"
-              type="password"
-              value={formState.password}
-              onChange={updateField('password')}
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-              required
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+            <div className="relative">
+              <input
+                id="auth-password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                value={formState.password}
+                onChange={updateField('password')}
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                required
+                className="w-full p-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+                className="absolute inset-y-0 right-0 px-3 text-gray-500 hover:text-gray-700 focus:outline-none focus:text-gray-700"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
 
           {mode === 'register' && (
@@ -236,16 +254,27 @@ export const Auth: React.FC = () => {
               >
                 Confirm Password
               </label>
-              <input
-                id="auth-password-confirm"
-                name="passwordConfirm"
-                type="password"
-                value={formState.passwordConfirm}
-                onChange={updateField('passwordConfirm')}
-                autoComplete="new-password"
-                required
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+              <div className="relative">
+                <input
+                  id="auth-password-confirm"
+                  name="passwordConfirm"
+                  type={showPasswordConfirm ? 'text' : 'password'}
+                  value={formState.passwordConfirm}
+                  onChange={updateField('passwordConfirm')}
+                  autoComplete="new-password"
+                  required
+                  className="w-full p-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordConfirm((prev) => !prev)}
+                  aria-label={showPasswordConfirm ? 'Hide confirm password' : 'Show confirm password'}
+                  aria-pressed={showPasswordConfirm}
+                  className="absolute inset-y-0 right-0 px-3 text-gray-500 hover:text-gray-700 focus:outline-none focus:text-gray-700"
+                >
+                  {showPasswordConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
           )}
 
