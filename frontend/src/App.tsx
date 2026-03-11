@@ -5,12 +5,16 @@ import { ProfileView } from './pages/ProfileView';
 import { Certifications } from './pages/Certifications';
 import { Home } from './pages/Home';
 import { Auth } from './pages/Auth';
+import { ForgotPassword } from './pages/ForgotPassword';
+import { ResetPassword } from './pages/ResetPassword';
 
 function App() {
   return (
     <Router>
       <Routes>
         <Route path="/login" element={<Auth />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route
           path="/resume-optimizer"

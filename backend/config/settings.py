@@ -35,6 +35,14 @@ def get_bool_env(name: str, default: bool = False) -> bool:
     return str(value).strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
+def get_int_env(name: str, default: int) -> int:
+    value = get_env(name, str(default))
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return default
+
+
 def resolve_env_reference(value: str) -> str:
     token = value.strip()
     if token.startswith('${{') and token.endswith('}}'):
@@ -182,6 +190,9 @@ DEFAULT_FRONTEND_ORIGIN = normalize_origin(
 )
 if not DEFAULT_FRONTEND_ORIGIN or DEFAULT_FRONTEND_ORIGIN in PLACEHOLDER_ORIGINS:
     DEFAULT_FRONTEND_ORIGIN = 'https://resume-maker-three-omega.vercel.app'
+FRONTEND_PASSWORD_RESET_PATH = get_env('FRONTEND_PASSWORD_RESET_PATH', '/reset-password') or '/reset-password'
+if not FRONTEND_PASSWORD_RESET_PATH.startswith('/'):
+    FRONTEND_PASSWORD_RESET_PATH = f'/{FRONTEND_PASSWORD_RESET_PATH}'
 
 CORS_ALLOW_ALL_ORIGINS = get_bool_env('CORS_ALLOW_ALL_ORIGINS', False)
 CORS_ALLOWED_ORIGINS = get_origin_list_env('CORS_ALLOWED_ORIGINS', DEFAULT_FRONTEND_ORIGIN)
@@ -192,6 +203,15 @@ default_origin_regexes = r"^http://localhost:\d+$,^http://127\.0\.0\.1:\d+$" if 
 CORS_ALLOWED_ORIGIN_REGEXES = get_list_env('CORS_ALLOWED_ORIGIN_REGEXES', default_origin_regexes)
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = get_origin_list_env('CSRF_TRUSTED_ORIGINS', ','.join(CORS_ALLOWED_ORIGINS))
+
+EMAIL_BACKEND = get_env('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = get_env('EMAIL_HOST', 'localhost')
+EMAIL_PORT = get_int_env('EMAIL_PORT', 25)
+EMAIL_HOST_USER = get_env('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = get_env('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = get_bool_env('EMAIL_USE_TLS', False)
+EMAIL_USE_SSL = get_bool_env('EMAIL_USE_SSL', False)
+DEFAULT_FROM_EMAIL = get_env('DEFAULT_FROM_EMAIL', 'no-reply@resumemaker.local')
 
 GROQ_API_KEY = get_env('GROQ_API_KEY')
 OPENAI_API_KEY = GROQ_API_KEY or get_env('OPENAI_API_KEY')

@@ -4,9 +4,16 @@ from unittest.mock import patch
 
 from pypdf import PdfReader
 
+from django.contrib.auth.tokens import default_token_generator
+from django.core import mail
 from django.test import override_settings
 from django.test import SimpleTestCase
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
+from rest_framework import status
+from rest_framework.test import APITestCase
 
+from accounts.models import User
 from .ai_service import AIService
 from . import latex_compiler as latex_compiler_module
 from .pdf_service import PDFService
@@ -466,3 +473,103 @@ class AIJsonParsingTests(SimpleTestCase):
         payload = AIService._extract_json_payload(raw)
         self.assertEqual(payload["cover_letter_text"], "sample")
         self.assertEqual(payload["email_subject"], "Application")
+
+
+@override_settings(
+    EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+    DEFAULT_FRONTEND_ORIGIN='http://localhost:5173',
+    FRONTEND_PASSWORD_RESET_PATH='/reset-password',
+)
+class PasswordResetFlowTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='resetuser',
+            email='resetuser@example.com',
+            password='OldPassword123!',
+        )
+        self.forgot_url = '/api/auth/password/forgot/'
+        self.reset_url = '/api/auth/password/reset/'
+        self.success_message = 'Email verified. Continue to reset password.'
+        self.not_found_message = 'No account found with this email.'
+
+    def test_forgot_password_returns_uid_token_for_known_account(self):
+        response = self.client.post(
+            self.forgot_url,
+            {'email': self.user.email},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['message'], self.success_message)
+        self.assertIn('uid', response.data)
+        self.assertIn('token', response.data)
+        self.assertTrue(response.data['uid'])
+        self.assertTrue(response.data['token'])
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_forgot_password_returns_not_found_for_unknown_account(self):
+        response = self.client.post(
+            self.forgot_url,
+            {'email': 'unknown@example.com'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.data['error'], self.not_found_message)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_reset_password_with_valid_uid_and_token_updates_password(self):
+        uid = urlsafe_base64_encode(force_bytes(self.user.pk))
+        token = default_token_generator.make_token(self.user)
+        new_password = 'NewStrongPassword123!'
+
+        response = self.client.post(
+            self.reset_url,
+            {
+                'uid': uid,
+                'token': token,
+                'new_password': new_password,
+                'confirm_password': new_password,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['message'], 'Password reset successful. You can now log in.')
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(new_password))
+
+    def test_reset_password_with_invalid_token_fails(self):
+        uid = urlsafe_base64_encode(force_bytes(self.user.pk))
+
+        response = self.client.post(
+            self.reset_url,
+            {
+                'uid': uid,
+                'token': 'invalid-token',
+                'new_password': 'AnotherStrongPassword123!',
+                'confirm_password': 'AnotherStrongPassword123!',
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['error'], 'Invalid or expired password reset link.')
+
+    def test_reset_password_with_mismatched_passwords_fails_validation(self):
+        uid = urlsafe_base64_encode(force_bytes(self.user.pk))
+        token = default_token_generator.make_token(self.user)
+
+        response = self.client.post(
+            self.reset_url,
+            {
+                'uid': uid,
+                'token': token,
+                'new_password': 'NewStrongPassword123!',
+                'confirm_password': 'DifferentPassword123!',
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('confirm_password', response.data)

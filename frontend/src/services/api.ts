@@ -95,6 +95,26 @@ export const authService = {
 
     return response.data;
   },
+
+  requestPasswordReset: async (email: string) => {
+    const response = await api.post('/auth/password/forgot/', { email });
+    return response.data;
+  },
+
+  resetPassword: async (
+    uid: string,
+    token: string,
+    new_password: string,
+    confirm_password: string,
+  ) => {
+    const response = await api.post('/auth/password/reset/', {
+      uid,
+      token,
+      new_password,
+      confirm_password,
+    });
+    return response.data;
+  },
   
   logout: () => {
     clearTokens();

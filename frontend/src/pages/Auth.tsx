@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { authService } from '../services/api';
 
@@ -245,6 +245,17 @@ export const Auth: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {mode === 'login' && (
+            <div className="-mt-1 text-right">
+              <Link
+                to="/forgot-password"
+                className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
+          )}
 
           {mode === 'register' && (
             <div>

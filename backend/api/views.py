@@ -3,8 +3,14 @@ import base64
 import os
 
 from django.conf import settings
+from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.tokens import default_token_generator
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.base import ContentFile
+from django.utils.encoding import force_bytes, force_str
 from django.utils import timezone
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from accounts.models import User
 from profiles.models import Profile
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -25,6 +31,7 @@ from .latex_compiler import detect_latex_compiler, COMPILER_PRIORITY, COMPILER_P
 from .serializers import (
     CoverLetterListSerializer,
     CoverLetterSerializer,
+    ForgotPasswordSerializer,
     GeneratedDocumentListSerializer,
     GeneratedDocumentSerializer,
     JobDescriptionListSerializer,
@@ -36,6 +43,7 @@ from .serializers import (
     ResumeListSerializer,
     ResumeOptimizerRequestSerializer,
     ResumeSerializer,
+    PasswordResetConfirmSerializer,
     UserRegistrationSerializer,
 )
 
@@ -58,6 +66,71 @@ class UserRegistrationViewSet(viewsets.GenericViewSet):
                 status=status.HTTP_201_CREATED,
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='password/forgot', permission_classes=[AllowAny])
+    def forgot_password(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data['email'].strip().lower()
+        user = User.objects.filter(email__iexact=email, is_active=True).first()
+
+        if not user:
+            return Response(
+                {'error': 'No account found with this email.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+
+        return Response(
+            {
+                'message': 'Email verified. Continue to reset password.',
+                'uid': uid,
+                'token': token,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=['post'], url_path='password/reset', permission_classes=[AllowAny])
+    def reset_password(self, request):
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        uid = serializer.validated_data['uid']
+        token = serializer.validated_data['token']
+        new_password = serializer.validated_data['new_password']
+
+        try:
+            user_id = force_str(urlsafe_base64_decode(uid))
+            user = User.objects.get(pk=user_id, is_active=True)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            return Response(
+                {'error': 'Invalid or expired password reset link.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not default_token_generator.check_token(user, token):
+            return Response(
+                {'error': 'Invalid or expired password reset link.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            validate_password(new_password, user=user)
+        except DjangoValidationError as exc:
+            return Response(
+                {'new_password': list(exc.messages)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.set_password(new_password)
+        user.save(update_fields=['password'])
+        return Response(
+            {'message': 'Password reset successful. You can now log in.'},
+            status=status.HTTP_200_OK,
+        )
 
 
 class ResumeViewSet(viewsets.ModelViewSet):
