@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sidebar } from '../components/Sidebar';
+import { AppHeader } from '../components/AppHeader';
 import { profileService, resumeService } from '../services/api';
 import { Upload, Eye, Trash2 } from 'lucide-react';
 import { Resume } from '../types';
@@ -193,127 +193,135 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  const cardClass =
+    'rounded-2xl border border-slate-200 bg-white/95 p-6 shadow-[0_14px_40px_-28px_rgba(16,185,129,0.6)]';
+  const inputClass =
+    'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100';
+
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <Sidebar />
-      
-      <div className="flex-1 p-8">
-        <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>
-        <p className="text-gray-600 mb-8">Upload and manage your base resume `.tex` file here.</p>
+    <div className="min-h-screen bg-[#f4f8f7] text-slate-900">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute left-[-100px] top-24 h-72 w-72 rounded-full bg-emerald-200/35 blur-3xl" />
+        <div className="absolute right-[-120px] top-0 h-80 w-80 rounded-full bg-teal-200/35 blur-3xl" />
+      </div>
+      <AppHeader />
+      <div className="relative z-10 max-w-7xl mx-auto px-4 py-8">
+        <h1 className="font-['Manrope'] text-3xl font-bold text-slate-800">Dashboard</h1>
+        <p className="mb-8 mt-1 text-slate-600">
+          Manage your profile and upload your base `.tex` resume for optimization.
+        </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Profile Section */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">Personal Details</h2>
+          <div className={cardClass}>
+            <h2 className="mb-4 font-['Manrope'] text-xl font-semibold text-slate-800">Personal Details</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
                 <input
                   type="text"
                   value={profile.full_name}
                   onChange={(e) => setProfile({ ...profile, full_name: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className={inputClass}
                   placeholder="John Doe"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
                 <input
                   type="email"
                   value={profile.email}
                   onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className={inputClass}
                   placeholder="john@example.com"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
                 <input
                   type="tel"
                   value={profile.phone}
                   onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className={inputClass}
                   placeholder="+1 234 567 8900"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
                 <input
                   type="text"
                   value={profile.location}
                   onChange={(e) => setProfile({ ...profile, location: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className={inputClass}
                   placeholder="New York, USA"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">LinkedIn</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">LinkedIn</label>
                 <input
                   type="url"
                   value={profile.linkedin_url}
                   onChange={(e) => setProfile({ ...profile, linkedin_url: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className={inputClass}
                   placeholder="https://linkedin.com/in/johndoe"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">GitHub</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">GitHub</label>
                 <input
                   type="url"
                   value={profile.github_url}
                   onChange={(e) => setProfile({ ...profile, github_url: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className={inputClass}
                   placeholder="https://github.com/johndoe"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Portfolio</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Portfolio</label>
                 <input
                   type="url"
                   value={profile.portfolio_url}
                   onChange={(e) => setProfile({ ...profile, portfolio_url: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className={inputClass}
                   placeholder="https://johndoe.com"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Summary</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Summary</label>
                 <textarea
                   value={profile.summary}
                   onChange={(e) => setProfile({ ...profile, summary: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className={inputClass}
                   rows={3}
                   placeholder="Brief professional summary..."
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Skills (comma separated)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Skills (comma separated)</label>
                 <input
                   type="text"
                   value={Array.isArray(profile.skills) ? profile.skills.join(', ') : profile.skills}
                   onChange={(e) => setProfile({ ...profile, skills: e.target.value.split(',').map(s => s.trim()) })}
-                  className="w-full p-2 border border-gray-300 rounded-lg"
+                  className={inputClass}
                   placeholder="Python, React, Node.js"
                 />
               </div>
               <button
                 onClick={handleProfileUpdate}
                 disabled={loading}
-                className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+                className="w-full rounded-lg bg-emerald-500 py-2.5 text-white font-medium transition hover:bg-emerald-600 disabled:bg-slate-400"
               >
                 {loading ? 'Saving...' : 'Update Profile'}
               </button>
             </div>
           </div>
 
-          {/* Resume Section */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">My Resumes</h2>
+          <div className={cardClass}>
+            <h2 className="mb-4 font-['Manrope'] text-xl font-semibold text-slate-800">My Resumes</h2>
             
             <div className="mb-6">
-              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500">
-                <Upload className="text-gray-400 mb-2" size={32} />
-                <span className="text-sm text-gray-600">Upload Base Resume (.tex)</span>
+              <label className="flex h-32 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/40 transition-colors hover:border-emerald-500 hover:bg-emerald-50">
+                <Upload className="mb-2 text-emerald-600" size={32} />
+                <span className="text-sm font-medium text-slate-700">Upload Base Resume (.tex)</span>
                 <input
                   type="file"
                   className="hidden"
@@ -322,23 +330,23 @@ export const Dashboard: React.FC = () => {
                   disabled={loading}
                 />
               </label>
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="mt-2 text-xs text-slate-500">
                 Exact layout preservation works with LaTeX resume source files.
               </p>
             </div>
 
             <div className="space-y-3">
               {resumes.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No resumes uploaded yet</p>
+                <p className="py-8 text-center text-slate-500">No resumes uploaded yet</p>
               ) : (
                 resumes.map((resume) => (
                   <div
                     key={resume.id}
-                    className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3 transition-colors hover:bg-slate-50"
                   >
                     <div className="flex-1">
-                      <p className="font-medium text-gray-800">Resume #{resume.id}</p>
-                      <p className="text-sm text-gray-500">
+                      <p className="font-medium text-slate-800">Resume #{resume.id}</p>
+                      <p className="text-sm text-slate-500">
                         {new Date(resume.created_at).toLocaleDateString()}
                       </p>
                     </div>
@@ -354,14 +362,14 @@ export const Dashboard: React.FC = () => {
                             : `${backendUrl}${filePath}`;
                           window.open(url, '_blank');
                         }}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                        className="rounded-lg p-2 text-emerald-700 transition-colors hover:bg-emerald-50"
                         title="View"
                       >
                         <Eye size={18} />
                       </button>
                       <button
                         onClick={() => handleDelete(resume.id)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded"
+                        className="rounded-lg p-2 text-rose-700 transition-colors hover:bg-rose-50"
                         title="Delete"
                       >
                         <Trash2 size={18} />

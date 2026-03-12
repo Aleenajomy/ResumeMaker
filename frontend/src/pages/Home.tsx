@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ATSScore } from '../components/ATSScore';
-import { authService, resumeOptimizerService, resumeService } from '../services/api';
+import { AppHeader } from '../components/AppHeader';
+import { resumeOptimizerService, resumeService } from '../services/api';
 import { DiffToken, GeneratedDocument, OptimizerGenerateResponse, Resume } from '../types';
 import { getAccessToken } from '../utils/auth';
 import { Copy, Download, FileText, RotateCcw } from 'lucide-react';
@@ -52,11 +53,6 @@ export const Home: React.FC = () => {
     } finally {
       setLoadingResumes(false);
     }
-  };
-
-  const handleLogout = () => {
-    authService.logout();
-    navigate('/login', { replace: true });
   };
 
   const resetForm = () => {
@@ -249,120 +245,118 @@ export const Home: React.FC = () => {
     };
   }, [result?.diff_json]);
 
+  const panelClass =
+    'rounded-2xl border border-slate-200 bg-white/95 p-6 shadow-[0_14px_40px_-28px_rgba(16,185,129,0.65)]';
+  const inputClass =
+    'w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100';
+  const textAreaClass =
+    'w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100';
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-800">Resume Optimizer</h1>
-            <p className="text-gray-600 mt-1">
-              Generate resume, cover letter, email, and resume diff in one click
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="bg-white border border-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-100"
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={handleLogout}
-              className="bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-800"
-            >
-              Logout
-            </button>
-          </div>
+    <div className="min-h-screen bg-[#f4f8f7] text-slate-900">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute left-[-120px] top-24 h-72 w-72 rounded-full bg-emerald-200/35 blur-3xl" />
+        <div className="absolute right-[-120px] top-10 h-80 w-80 rounded-full bg-teal-200/30 blur-3xl" />
+      </div>
+      <AppHeader />
+      <div className="relative z-10 mx-auto max-w-7xl px-4 py-8">
+        <div className="mb-8">
+          <h1 className="font-['Manrope'] text-4xl font-bold text-slate-800">Resume Generator</h1>
+          <p className="mt-1 text-slate-600">
+            Generate ATS-ready resume, cover letter, email, and resume diff in one workflow.
+          </p>
         </div>
 
         <div className="max-w-5xl mx-auto space-y-6">
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4">Job-Specific Customization</h2>
+          <div className={panelClass}>
+            <h2 className="mb-4 font-['Manrope'] text-2xl font-semibold text-slate-800">
+              Job-Specific Customization
+            </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Company Name</label>
                 <input
                   type="text"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
                   autoComplete="off"
-                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  className={inputClass}
                   placeholder="Google"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Company Location (Optional)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Company Location (Optional)</label>
                 <input
                   type="text"
                   value={companyLocation}
                   onChange={(e) => setCompanyLocation(e.target.value)}
                   autoComplete="off"
-                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  className={inputClass}
                   placeholder="Technopark, Kerala"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Job Title</label>
                 <input
                   type="text"
                   value={jobTitle}
                   onChange={(e) => setJobTitle(e.target.value)}
                   autoComplete="off"
-                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  className={inputClass}
                   placeholder="Software Engineer"
                 />
               </div>
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Job Description</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Job Description</label>
               <textarea
                 value={jobDescription}
                 onChange={(e) => setJobDescription(e.target.value)}
                 autoComplete="off"
-                className="w-full h-56 p-3 border border-gray-300 rounded-lg"
+                className={`${textAreaClass} h-56`}
                 placeholder="Paste the full job description..."
               />
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
                 Requirements (Optional)
               </label>
               <textarea
                 value={requirements}
                 onChange={(e) => setRequirements(e.target.value)}
                 autoComplete="off"
-                className="w-full h-28 p-3 border border-gray-300 rounded-lg"
+                className={`${textAreaClass} h-28`}
                 placeholder="Any structured requirements or key constraints..."
               />
             </div>
 
-            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3">
-              <p className="font-medium text-gray-800">Resume Source (Dashboard `.tex` only)</p>
+            <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
+              <p className="font-medium text-slate-800">Resume Source (Dashboard `.tex` only)</p>
               {loadingResumes ? (
-                <p className="text-sm text-gray-600">Loading dashboard resumes...</p>
+                <p className="text-sm text-slate-600">Loading dashboard resumes...</p>
               ) : latexResumes.length === 0 ? (
                 <div className="text-sm text-amber-700 space-y-2">
                   <p>No `.tex` resume found in Dashboard.</p>
                   <button
                     type="button"
                     onClick={() => navigate('/dashboard')}
-                    className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-800 hover:bg-gray-100"
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 transition-colors hover:bg-slate-50"
                   >
                     Go to Dashboard Upload
                   </button>
                 </div>
               ) : (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
                     Select uploaded dashboard `.tex` resume
                   </label>
                   <select
                     value={selectedResumeId ?? ''}
                     onChange={(e) => setSelectedResumeId(e.target.value ? Number(e.target.value) : null)}
-                    className="w-full p-3 border border-gray-300 rounded-lg bg-white"
+                    className={inputClass}
                   >
                     {latexResumes.map((resume) => (
                       <option key={resume.id} value={resume.id}>
@@ -378,14 +372,14 @@ export const Home: React.FC = () => {
               <button
                 onClick={handleGenerate}
                 disabled={loadingGenerate}
-                className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-medium"
+                className="flex-1 rounded-lg bg-emerald-500 py-3 font-medium text-white transition hover:bg-emerald-600 disabled:bg-slate-400"
               >
                 {loadingGenerate ? 'Generating...' : 'Generate Documents'}
               </button>
               <button
                 onClick={resetForm}
                 type="button"
-                className="flex items-center justify-center gap-2 px-5 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100"
+                className="flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-5 py-3 text-slate-700 transition-colors hover:bg-slate-50"
               >
                 <RotateCcw size={18} />
                 Reset
@@ -401,16 +395,16 @@ export const Home: React.FC = () => {
                 missingKeywords={result.missing_keywords}
               />
 
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h2 className="text-2xl font-semibold text-gray-800 mb-4">Generated Documents</h2>
+              <div className={panelClass}>
+                <h2 className="mb-4 font-['Manrope'] text-2xl font-semibold text-slate-800">Generated Documents</h2>
                 {result.is_latex_based && (
-                  <p className="text-sm text-gray-600 mb-4">
+                  <p className="mb-4 text-sm text-slate-600">
                     Controlled LaTeX mode: only header headline, Summary, and Skills are updated.
                     Experience, Projects, and Education are kept unchanged.
                   </p>
                 )}
                 {result.is_latex_based && !result.resume_pdf && result.tailored_resume_tex && (
-                  <p className="text-sm text-amber-700 mb-4">
+                  <p className="mb-4 text-sm text-amber-700">
                     PDF compile failed on server. Download the updated LaTeX source and compile locally.
                   </p>
                 )}
@@ -421,8 +415,8 @@ export const Home: React.FC = () => {
                     onClick={() => handleDownload(result.resume_pdf, 'tailored_resume.pdf')}
                     className={`flex items-center justify-center gap-2 py-3 rounded-lg ${
                       result.resume_pdf
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
-                        : 'bg-gray-300 text-gray-600 pointer-events-none'
+                        ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                        : 'bg-slate-300 text-slate-600 pointer-events-none'
                     }`}
                   >
                     <Download size={18} />
@@ -433,8 +427,8 @@ export const Home: React.FC = () => {
                     onClick={() => handleDownload(result.cover_letter_pdf, 'cover_letter.pdf')}
                     className={`flex items-center justify-center gap-2 py-3 rounded-lg ${
                       result.cover_letter_pdf
-                        ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                        : 'bg-gray-300 text-gray-600 pointer-events-none'
+                        ? 'bg-teal-600 text-white hover:bg-teal-700'
+                        : 'bg-slate-300 text-slate-600 pointer-events-none'
                     }`}
                   >
                     <FileText size={18} />
@@ -445,8 +439,8 @@ export const Home: React.FC = () => {
                     onClick={() => handleDownload(result.cover_letter_docx, 'cover_letter.docx')}
                     className={`flex items-center justify-center gap-2 py-3 rounded-lg ${
                       result.cover_letter_docx
-                        ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
-                        : 'bg-gray-300 text-gray-600 pointer-events-none'
+                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                        : 'bg-slate-300 text-slate-600 pointer-events-none'
                     }`}
                   >
                     <FileText size={18} />
@@ -454,37 +448,37 @@ export const Home: React.FC = () => {
                   </button>
                   <button
                     onClick={handleCopyEmail}
-                    className="flex items-center justify-center gap-2 bg-gray-800 text-white py-3 rounded-lg hover:bg-gray-900"
+                    className="flex items-center justify-center gap-2 rounded-lg bg-slate-900 py-3 text-white hover:bg-slate-800"
                   >
                     <Copy size={18} />
                     Copy Professional Email
                   </button>
                   <button
                     onClick={() => setShowDiff((prev) => !prev)}
-                    className="flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-lg hover:bg-emerald-700"
+                    className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 py-3 text-white hover:bg-emerald-700"
                   >
                     {showDiff ? 'Hide Resume Diff' : 'View Resume Diff'}
                   </button>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                     <h3 className="font-semibold mb-3">Email Template</h3>
-                    <div className="bg-white border border-gray-200 rounded-md p-3">
-                      <p className="text-gray-700 text-sm whitespace-pre-wrap">{`Subject: ${result.email_subject}\n\n${result.email_body}`}</p>
+                    <div className="rounded-md border border-slate-200 bg-white p-3">
+                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{`Subject: ${result.email_subject}\n\n${result.email_body}`}</p>
                     </div>
                   </div>
 
-                  <div className="border border-gray-200 rounded-lg p-4">
+                  <div className="rounded-lg border border-slate-200 p-4">
                     <h3 className="font-semibold mb-2">Cover Letter Preview</h3>
-                    <p className="text-gray-700 text-sm whitespace-pre-wrap max-h-56 overflow-auto">
+                    <p className="max-h-56 overflow-auto text-sm text-slate-700 whitespace-pre-wrap">
                       {result.cover_letter_text}
                     </p>
                     <h3 className="font-semibold mt-4 mb-2">AI Change Summary</h3>
                     {result.ai_changes.length === 0 ? (
-                      <p className="text-sm text-gray-600">No changes listed.</p>
+                      <p className="text-sm text-slate-600">No changes listed.</p>
                     ) : (
-                      <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                      <ul className="list-disc list-inside space-y-1 text-sm text-slate-700">
                         {result.ai_changes.map((item, index) => (
                           <li key={`${item}-${index}`}>{item}</li>
                         ))}
@@ -495,8 +489,8 @@ export const Home: React.FC = () => {
               </div>
 
               {showDiff && result.diff_json && diffData && (
-                <div className="bg-white rounded-xl shadow-lg p-6">
-                  <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+                <div className={panelClass}>
+                  <h2 className="mb-4 font-['Manrope'] text-2xl font-semibold text-slate-800">
                     {result.is_latex_based ? 'LaTeX Resume Diff' : 'Resume Diff'}
                   </h2>
                   <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -506,7 +500,7 @@ export const Home: React.FC = () => {
                       className={`px-3 py-1.5 rounded-md text-sm border ${
                         diffMode === 'summary'
                           ? 'bg-emerald-600 text-white border-emerald-600'
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                       }`}
                     >
                       Summary View
@@ -517,7 +511,7 @@ export const Home: React.FC = () => {
                       className={`px-3 py-1.5 rounded-md text-sm border ${
                         diffMode === 'highlight'
                           ? 'bg-emerald-600 text-white border-emerald-600'
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                       }`}
                     >
                       Highlight View
@@ -537,10 +531,10 @@ export const Home: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                        <h3 className="font-semibold text-gray-800 mb-3">Key Changes</h3>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <h3 className="mb-3 font-semibold text-slate-800">Key Changes</h3>
                         {diffData.groupedChanges.length === 0 ? (
-                          <p className="text-sm text-gray-600">No grouped changes available.</p>
+                          <p className="text-sm text-slate-600">No grouped changes available.</p>
                         ) : (
                           <div className="space-y-2 max-h-56 overflow-auto pr-1">
                             {diffData.groupedChanges.map((change, index) => (
@@ -561,22 +555,22 @@ export const Home: React.FC = () => {
                       </div>
 
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <div className="border border-gray-200 rounded-lg p-4">
-                          <h3 className="font-semibold text-gray-800 mb-2">Before</h3>
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap max-h-64 overflow-auto">
+                        <div className="rounded-lg border border-slate-200 p-4">
+                          <h3 className="mb-2 font-semibold text-slate-800">Before</h3>
+                          <p className="max-h-64 overflow-auto text-sm text-slate-700 whitespace-pre-wrap">
                             {diffData.originalText}
                           </p>
                         </div>
-                        <div className="border border-gray-200 rounded-lg p-4">
-                          <h3 className="font-semibold text-gray-800 mb-2">After</h3>
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap max-h-64 overflow-auto">
+                        <div className="rounded-lg border border-slate-200 p-4">
+                          <h3 className="mb-2 font-semibold text-slate-800">After</h3>
+                          <p className="max-h-64 overflow-auto text-sm text-slate-700 whitespace-pre-wrap">
                             {diffData.updatedText}
                           </p>
                         </div>
                       </div>
                     </div>
                   ) : (
-                    <div className="p-4 border border-gray-200 rounded-lg leading-8 bg-gray-50">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 leading-8">
                       {result.diff_json.map((item, index) => (
                         <span
                           key={`${item.word}-${index}`}
@@ -585,7 +579,7 @@ export const Home: React.FC = () => {
                               ? 'bg-emerald-200 text-emerald-900 px-1 rounded'
                               : item.type === 'removed'
                               ? 'bg-rose-200 text-rose-900 line-through px-1 rounded'
-                              : 'text-gray-700'
+                              : 'text-slate-700'
                           }
                         >
                           {item.word}{' '}

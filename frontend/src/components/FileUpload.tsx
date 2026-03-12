@@ -22,13 +22,15 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, label }) =
     <div
       {...getRootProps()}
       className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-        isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+        isDragActive
+          ? 'border-emerald-500 bg-emerald-50'
+          : 'border-emerald-300 bg-white hover:border-emerald-400'
       }`}
     >
       <input {...getInputProps()} />
-      <Upload className="mx-auto h-12 w-12 text-gray-400" />
-      <p className="mt-2 text-sm text-gray-600">{label}</p>
-      <p className="text-xs text-gray-500 mt-1">or click to browse</p>
+      <Upload className="mx-auto h-12 w-12 text-emerald-500" />
+      <p className="mt-2 text-sm text-slate-700">{label}</p>
+      <p className="text-xs text-slate-500 mt-1">or click to browse</p>
     </div>
   );
 };

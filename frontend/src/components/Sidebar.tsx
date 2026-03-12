@@ -20,7 +20,13 @@ export const Sidebar: React.FC = () => {
   return (
     <div className="w-64 bg-white h-screen shadow-lg flex flex-col">
       <div className="p-6 border-b">
-        <h1 className="text-2xl font-bold text-gray-800">Resume Maker</h1>
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="text-2xl font-bold text-gray-800 transition-colors hover:text-emerald-600"
+        >
+          Resume Maker
+        </button>
       </div>
 
       <nav className="flex-1 p-4">

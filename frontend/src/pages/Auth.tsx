@@ -110,7 +110,12 @@ export const Auth: React.FC = () => {
     await authService.login(username, password);
     setSuccessMessage('Login successful. Redirecting...');
     await new Promise((resolve) => setTimeout(resolve, 500));
-    navigate('/resume-optimizer', { replace: true });
+    navigate('/', { replace: true });
+    setTimeout(() => {
+      if (window.location.pathname !== '/') {
+        window.location.replace('/');
+      }
+    }, 50);
   };
 
   const handleRegister = async () => {
@@ -157,6 +162,11 @@ export const Auth: React.FC = () => {
         <h1 className="text-3xl font-bold text-gray-800 mb-2 text-center">Resume Maker</h1>
         <p className="text-sm text-gray-500 mb-6 text-center">
           Login to access resume optimization tools
+        </p>
+        <p className="text-sm text-center mb-4">
+          <Link to="/" className="text-blue-600 hover:text-blue-700 hover:underline">
+            Back to Home
+          </Link>
         </p>
 
         <div className="grid grid-cols-2 gap-2 mb-6">
