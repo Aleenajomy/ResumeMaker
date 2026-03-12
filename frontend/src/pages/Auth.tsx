@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
+import { LandingParticles } from '../components/LandingParticles';
 import { authService } from '../services/api';
 import { extractApiErrorMessage } from '../utils/apiError';
 
@@ -99,163 +100,174 @@ export const Auth: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-100 flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white shadow-lg rounded-xl p-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2 text-center">Resume Maker</h1>
-        <p className="text-sm text-gray-500 mb-6 text-center">
-          Login to access resume optimization tools
-        </p>
+    <div
+      className="relative min-h-screen overflow-hidden"
+      style={{
+        backgroundImage:
+          'radial-gradient(circle at 18% 18%, rgba(214, 236, 205, 0.14), transparent 24%), radial-gradient(circle at 82% 14%, rgba(207,215,222,0.18), transparent 26%), linear-gradient(135deg,#b8cab4 0%,#695aac 48%,#b8cab4 100%)',
+      }}
+    >
+      <LandingParticles />
+      <div className="absolute inset-0 bg-white/4" />
 
-        <div className="grid grid-cols-2 gap-2 mb-6">
-          <button
-            type="button"
-            onClick={() => handleModeChange('login')}
-            className={`py-2 rounded-md text-sm font-medium ${
-              mode === 'login'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Login
-          </button>
-          <button
-            type="button"
-            onClick={() => handleModeChange('register')}
-            className={`py-2 rounded-md text-sm font-medium ${
-              mode === 'register'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Register
-          </button>
-        </div>
+      <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
+        <div className="w-full max-w-md rounded-2xl border border-white/40 bg-white/78 p-8 shadow-[0_24px_70px_rgba(24,28,42,0.22)] backdrop-blur-x">
+          <h1 className="mb-2 text-center text-3xl font-bold text-white/80">Resume Maker</h1>
+          <p className="mb-6 text-center text-sm text-white/70">
+            Login to access resume optimization tools
+          </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
-          <div>
-            <label htmlFor="auth-username" className="block text-sm font-medium text-gray-700 mb-1">
-              Username
-            </label>
-            <input
-              id="auth-username"
-              name="username"
-              type="text"
-              value={formState.username}
-              onChange={updateField('username')}
-              autoComplete="username"
-              required
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+          <div className="mb-6 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => handleModeChange('login')}
+              className={`rounded-md py-2 text-sm font-medium transition-colors ${
+                mode === 'login'
+                 ? 'bg-[#583bac] text-white hover:bg-[#462f8a]'
+                 :  'bg-white/72 text-[#ede8e6]/70 hover:bg-[#b9c9b7]'
+              }`}
+            >
+              Login
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange('register')}
+              className={`rounded-md py-2 text-sm font-medium transition-colors ${
+                mode === 'register'
+                  ? 'bg-[#583bac] text-white hover:bg-[#462f8a]'
+                  : 'bg-white/72 text-[#ede8e6]/70 hover:bg-[#b9c9b7]'
+              }`}
+            >
+              Register
+            </button>
           </div>
 
-          {mode === 'register' && (
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
             <div>
-              <label htmlFor="auth-email" className="block text-sm font-medium text-gray-700 mb-1">
-                Email
+              <label htmlFor="auth-username" className="mb-1 block text-sm font-medium text-white/60">
+                Username
               </label>
               <input
-                id="auth-email"
-                name="email"
-                type="email"
-                value={formState.email}
-                onChange={updateField('email')}
-                autoComplete="email"
+                id="auth-username"
+                name="username"
+                type="text"
+                value={formState.username}
+                onChange={updateField('username')}
+                autoComplete="username"
                 required
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full rounded-lg border border-gray-300 bg-white/92 p-3 outline-none focus:border-[#7b869b] focus:ring-2 focus:ring-[#7b869b]"
               />
             </div>
-          )}
 
-          <div>
-            <label htmlFor="auth-password" className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
-            <div className="relative">
-              <input
-                id="auth-password"
-                name="password"
-                type={showPassword ? 'text' : 'password'}
-                value={formState.password}
-                onChange={updateField('password')}
-                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                required
-                className="w-full p-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((prev) => !prev)}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-                aria-pressed={showPassword}
-                className="absolute inset-y-0 right-0 px-3 text-gray-500 hover:text-gray-700 focus:outline-none focus:text-gray-700"
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-          </div>
+            {mode === 'register' && (
+              <div>
+                <label htmlFor="auth-email" className="mb-1 block text-sm font-medium text-white/60">
+                  Email
+                </label>
+                <input
+                  id="auth-email"
+                  name="email"
+                  type="email"
+                  value={formState.email}
+                  onChange={updateField('email')}
+                  autoComplete="email"
+                  required
+                  className="w-full rounded-lg border border-gray-300 bg-white/92 p-3 outline-none focus:border-[#7b869b] focus:ring-2 focus:ring-[#7b869b]"
+                />
+              </div>
+            )}
 
-          {mode === 'login' && (
-            <div className="-mt-1 text-right">
-              <Link
-                to="/forgot-password"
-                className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
-              >
-                Forgot password?
-              </Link>
-            </div>
-          )}
-
-          {mode === 'register' && (
             <div>
-              <label
-                htmlFor="auth-password-confirm"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Confirm Password
+              <label htmlFor="auth-password" className="mb-1 block text-sm font-medium text-white/60">
+                Password
               </label>
               <div className="relative">
                 <input
-                  id="auth-password-confirm"
-                  name="passwordConfirm"
-                  type={showPasswordConfirm ? 'text' : 'password'}
-                  value={formState.passwordConfirm}
-                  onChange={updateField('passwordConfirm')}
-                  autoComplete="new-password"
+                  id="auth-password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={formState.password}
+                  onChange={updateField('password')}
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   required
-                  className="w-full p-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full rounded-lg border border-gray-300 bg-white/92 p-3 pr-10 outline-none focus:border-[#7b869b] focus:ring-2 focus:ring-[#7b869b]"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPasswordConfirm((prev) => !prev)}
-                  aria-label={showPasswordConfirm ? 'Hide confirm password' : 'Show confirm password'}
-                  aria-pressed={showPasswordConfirm}
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
                   className="absolute inset-y-0 right-0 px-3 text-gray-500 hover:text-gray-700 focus:outline-none focus:text-gray-700"
                 >
-                  {showPasswordConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
-          )}
 
-          {errorMessage && (
-            <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">
-              {errorMessage}
-            </div>
-          )}
+            {mode === 'login' && (
+              <div className="-mt-1 text-right">
+                <Link
+                  to="/forgot-password"
+                  className="text-sm text-white/60 hover:text-[#c2e4a2] hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+            )}
 
-          {successMessage && (
-            <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md p-3">
-              {successMessage}
-            </div>
-          )}
+            {mode === 'register' && (
+              <div>
+                <label
+                  htmlFor="auth-password-confirm"
+                  className="mb-1 block text-sm font-medium text-white/60"
+                >
+                  Confirm Password
+                </label>
+                <div className="relative">
+                  <input
+                    id="auth-password-confirm"
+                    name="passwordConfirm"
+                    type={showPasswordConfirm ? 'text' : 'password'}
+                    value={formState.passwordConfirm}
+                    onChange={updateField('passwordConfirm')}
+                    autoComplete="new-password"
+                    required
+                    className="w-full rounded-lg border border-gray-300 bg-white/92 p-3 pr-10 outline-none focus:border-[#7b869b] focus:ring-2 focus:ring-[#7b869b]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordConfirm((prev) => !prev)}
+                    aria-label={showPasswordConfirm ? 'Hide confirm password' : 'Show confirm password'}
+                    aria-pressed={showPasswordConfirm}
+                    className="absolute inset-y-0 right-0 px-3 text-white/60 hover:text-gray-700 focus:outline-none focus:text-gray-700"
+                  >
+                    {showPasswordConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+            )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
-          >
-            {loading ? 'Please wait...' : mode === 'login' ? 'Login' : 'Create Account'}
-          </button>
-        </form>
+            {errorMessage && (
+              <div className="rounded-md border border-red-200 bg-red-50/95 p-3 text-sm text-red-700">
+                {errorMessage}
+              </div>
+            )}
+
+            {successMessage && (
+              <div className="rounded-md border border-green-200 bg-green-50/95 p-3 text-sm text-green-700">
+                {successMessage}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-lg bg-[#520780] py-3 text-white transition-colors hover:bg-[#420667] disabled:bg-gray-400"
+            >
+              {loading ? 'Please wait...' : mode === 'login' ? 'Login' : 'Create Account'}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
