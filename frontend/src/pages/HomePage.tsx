@@ -196,7 +196,7 @@ export const HomePage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate(ctaRoute)}
-                className="mx-auto mt-6 inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-6 py-3 text-lg font-semibold text-white transition hover:bg-emerald-600"
+                className="mx-auto mt-6 flex w-fit items-center gap-2 rounded-lg bg-emerald-500 px-6 py-3 text-lg font-semibold text-white transition hover:bg-emerald-600"
               >
                 Upload Your Resume
                 <ArrowRight size={18} />
