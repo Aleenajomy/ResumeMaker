@@ -49,7 +49,7 @@ export const Auth: React.FC = () => {
     await authService.login(username, password);
     setSuccessMessage('Login successful. Redirecting...');
     await new Promise((resolve) => setTimeout(resolve, 500));
-    navigate('/resume-optimizer', { replace: true });
+    navigate('/', { replace: true });
   };
 
   const handleRegister = async () => {
