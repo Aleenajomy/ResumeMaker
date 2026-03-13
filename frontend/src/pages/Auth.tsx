@@ -103,7 +103,7 @@ export const Auth: React.FC = () => {
     <div
       className="relative min-h-screen overflow-hidden"
       style={{
-        background: 'linear-gradient(135deg, #d4f1e8 0%, #e8f5f0 25%, #f0f9f5 50%, #e0f2eb 75%, #c8ebe0 100%)',
+        background: 'linear-gradient(135deg, #fef5f7 0%, #e8f5f0 25%, #f0f9f5 50%, #fef0f5 75%, #e8f5f0 100%)',
       }}
     >
       <LandingParticles />
@@ -115,7 +115,7 @@ export const Auth: React.FC = () => {
           onClick={() => navigate('/')}
           className="inline-flex items-center gap-2 font-['Manrope'] text-4xl font-bold tracking-tight text-[#059669]"
         >
-          <Sparkles size={20} strokeWidth={2.2} className="text-[#059669]" />
+          <Sparkles size={30} strokeWidth={2.2} className="text-[#059669]" />
           <span>Resume Maker</span>
         </button>
       </div>

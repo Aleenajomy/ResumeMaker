@@ -24,14 +24,10 @@ const particleOptions: ISourceOptions = {
   },
   particles: {
     color: {
-      value: ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0'],
+      value: ['#ffc9d4', '#ffb3c6', '#ffd4e5', '#c7f5e8', '#b8f0dd', '#d4f1e8'],
     },
     links: {
-      color: '#10b981',
-      distance: 100,
-      enable: true,
-      opacity: 0.2,
-      width: 1,
+      enable: false,
     },
     move: {
       direction: 'none',
@@ -39,8 +35,8 @@ const particleOptions: ISourceOptions = {
       outModes: {
         default: 'out',
       },
-      random: false,
-      speed: 0.12,
+      random: true,
+      speed: 0.3,
       straight: false,
     },
     number: {
@@ -49,21 +45,64 @@ const particleOptions: ISourceOptions = {
         height: 800,
         width: 800,
       },
-      value: 50,
+      value: 25,
     },
     opacity: {
       value: {
-        min: 0.14,
-        max: 0.17,
+        min: 0.15,
+        max: 0.35,
+      },
+      animation: {
+        enable: true,
+        speed: 0.3,
+        sync: false,
       },
     },
     shape: {
-      type: 'circle',
+      type: ['square', 'polygon'],
+      options: {
+        polygon: [
+          {
+            sides: 6,
+          },
+          {
+            sides: 5,
+          },
+          {
+            sides: 4,
+          },
+        ],
+      },
     },
     size: {
       value: {
-        min: 2,
-        max: 4,
+        min: 20,
+        max: 60,
+      },
+    },
+    rotate: {
+      value: {
+        min: 0,
+        max: 360,
+      },
+      direction: 'random',
+      animation: {
+        enable: true,
+        speed: 2,
+        sync: false,
+      },
+    },
+    life: {
+      duration: {
+        sync: false,
+        value: 8,
+      },
+      count: 0,
+      delay: {
+        value: {
+          min: 0,
+          max: 3,
+        },
       },
     },
   },
