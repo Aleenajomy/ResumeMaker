@@ -24,14 +24,14 @@ const particleOptions: ISourceOptions = {
   },
   particles: {
     color: {
-      value: ['#d6d0d0', '#c4ecd8', '#a6c2b6'],
+      value: ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0'],
     },
     links: {
-      color: '#e4ddd7',
+      color: '#10b981',
       distance: 100,
       enable: true,
-      opacity: 0.33,
-      width: 0.99,
+      opacity: 0.2,
+      width: 1,
     },
     move: {
       direction: 'none',

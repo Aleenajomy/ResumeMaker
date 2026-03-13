@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Sparkles } from 'lucide-react';
 import { LandingParticles } from '../components/LandingParticles';
 import { authService } from '../services/api';
 import { extractApiErrorMessage } from '../utils/apiError';
@@ -103,17 +103,27 @@ export const Auth: React.FC = () => {
     <div
       className="relative min-h-screen overflow-hidden"
       style={{
-        backgroundImage:
-          'radial-gradient(circle at 18% 18%, rgba(214, 236, 205, 0.14), transparent 24%), radial-gradient(circle at 82% 14%, rgba(207,215,222,0.18), transparent 26%), linear-gradient(135deg,#b8cab4 0%,#695aac 48%,#b8cab4 100%)',
+        background: 'linear-gradient(135deg, #d4f1e8 0%, #e8f5f0 25%, #f0f9f5 50%, #e0f2eb 75%, #c8ebe0 100%)',
       }}
     >
       <LandingParticles />
-      <div className="absolute inset-0 bg-white/4" />
+
+      {/* Logo in top left */}
+      <div className="absolute top-6 left-8 z-20">
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="inline-flex items-center gap-2 font-['Manrope'] text-4xl font-bold tracking-tight text-[#059669]"
+        >
+          <Sparkles size={20} strokeWidth={2.2} className="text-[#059669]" />
+          <span>Resume Maker</span>
+        </button>
+      </div>
 
       <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md rounded-2xl border border-white/40 bg-white/78 p-8 shadow-[0_24px_70px_rgba(24,28,42,0.22)] backdrop-blur-x">
-          <h1 className="mb-2 text-center text-3xl font-bold text-white/80">Resume Maker</h1>
-          <p className="mb-6 text-center text-sm text-white/70">
+        <div className="w-full max-w-md rounded-2xl border border-emerald-100 bg-white/90 p-8 shadow-[0_20px_60px_rgba(16,185,129,0.15)] backdrop-blur-sm">
+          <h1 className="mb-2 text-center text-3xl font-bold text-gray-800">Welcome Back</h1>
+          <p className="mb-6 text-center text-sm text-gray-600">
             Login to access resume optimization tools
           </p>
 
@@ -123,8 +133,8 @@ export const Auth: React.FC = () => {
               onClick={() => handleModeChange('login')}
               className={`rounded-md py-2 text-sm font-medium transition-colors ${
                 mode === 'login'
-                 ? 'bg-[#583bac] text-white hover:bg-[#462f8a]'
-                 :  'bg-white/72 text-[#ede8e6]/70 hover:bg-[#b9c9b7]'
+                 ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                 :  'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
               Login
@@ -134,8 +144,8 @@ export const Auth: React.FC = () => {
               onClick={() => handleModeChange('register')}
               className={`rounded-md py-2 text-sm font-medium transition-colors ${
                 mode === 'register'
-                  ? 'bg-[#583bac] text-white hover:bg-[#462f8a]'
-                  : 'bg-white/72 text-[#ede8e6]/70 hover:bg-[#b9c9b7]'
+                  ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
               Register
@@ -144,7 +154,7 @@ export const Auth: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
             <div>
-              <label htmlFor="auth-username" className="mb-1 block text-sm font-medium text-white/60">
+              <label htmlFor="auth-username" className="mb-1 block text-sm font-medium text-gray-700">
                 Username
               </label>
               <input
@@ -155,13 +165,13 @@ export const Auth: React.FC = () => {
                 onChange={updateField('username')}
                 autoComplete="username"
                 required
-                className="w-full rounded-lg border border-gray-300 bg-white/92 p-3 outline-none focus:border-[#7b869b] focus:ring-2 focus:ring-[#7b869b]"
+                className="w-full rounded-lg border border-gray-300 bg-white p-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
               />
             </div>
 
             {mode === 'register' && (
               <div>
-                <label htmlFor="auth-email" className="mb-1 block text-sm font-medium text-white/60">
+                <label htmlFor="auth-email" className="mb-1 block text-sm font-medium text-gray-700">
                   Email
                 </label>
                 <input
@@ -172,13 +182,13 @@ export const Auth: React.FC = () => {
                   onChange={updateField('email')}
                   autoComplete="email"
                   required
-                  className="w-full rounded-lg border border-gray-300 bg-white/92 p-3 outline-none focus:border-[#7b869b] focus:ring-2 focus:ring-[#7b869b]"
+                  className="w-full rounded-lg border border-gray-300 bg-white p-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
             )}
 
             <div>
-              <label htmlFor="auth-password" className="mb-1 block text-sm font-medium text-white/60">
+              <label htmlFor="auth-password" className="mb-1 block text-sm font-medium text-gray-700">
                 Password
               </label>
               <div className="relative">
@@ -190,7 +200,7 @@ export const Auth: React.FC = () => {
                   onChange={updateField('password')}
                   autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   required
-                  className="w-full rounded-lg border border-gray-300 bg-white/92 p-3 pr-10 outline-none focus:border-[#7b869b] focus:ring-2 focus:ring-[#7b869b]"
+                  className="w-full rounded-lg border border-gray-300 bg-white p-3 pr-10 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
                 />
                 <button
                   type="button"
@@ -208,7 +218,7 @@ export const Auth: React.FC = () => {
               <div className="-mt-1 text-right">
                 <Link
                   to="/forgot-password"
-                  className="text-sm text-white/60 hover:text-[#c2e4a2] hover:underline"
+                  className="text-sm text-emerald-600 hover:text-emerald-700 hover:underline"
                 >
                   Forgot password?
                 </Link>
@@ -219,7 +229,7 @@ export const Auth: React.FC = () => {
               <div>
                 <label
                   htmlFor="auth-password-confirm"
-                  className="mb-1 block text-sm font-medium text-white/60"
+                  className="mb-1 block text-sm font-medium text-gray-700"
                 >
                   Confirm Password
                 </label>
@@ -232,14 +242,14 @@ export const Auth: React.FC = () => {
                     onChange={updateField('passwordConfirm')}
                     autoComplete="new-password"
                     required
-                    className="w-full rounded-lg border border-gray-300 bg-white/92 p-3 pr-10 outline-none focus:border-[#7b869b] focus:ring-2 focus:ring-[#7b869b]"
+                    className="w-full rounded-lg border border-gray-300 bg-white p-3 pr-10 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPasswordConfirm((prev) => !prev)}
                     aria-label={showPasswordConfirm ? 'Hide confirm password' : 'Show confirm password'}
                     aria-pressed={showPasswordConfirm}
-                    className="absolute inset-y-0 right-0 px-3 text-white/60 hover:text-gray-700 focus:outline-none focus:text-gray-700"
+                    className="absolute inset-y-0 right-0 px-3 text-gray-500 hover:text-gray-700 focus:outline-none focus:text-gray-700"
                   >
                     {showPasswordConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
@@ -262,7 +272,7 @@ export const Auth: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-lg bg-[#520780] py-3 text-white transition-colors hover:bg-[#420667] disabled:bg-gray-400"
+              className="w-full rounded-lg bg-emerald-600 py-3 text-white font-medium transition-colors hover:bg-emerald-700 disabled:bg-gray-400"
             >
               {loading ? 'Please wait...' : mode === 'login' ? 'Login' : 'Create Account'}
             </button>
