@@ -193,14 +193,16 @@ export const HomePage: React.FC = () => {
                 <br />
                 PDF &amp; DOCX only. Max 2MB file size.
               </p>
-              <button
-                type="button"
-                onClick={() => navigate(ctaRoute)}
-                className="mx-auto mt-6 flex w-fit items-center gap-2 rounded-lg bg-emerald-500 px-6 py-3 text-lg font-semibold text-white transition hover:bg-emerald-600"
-              >
-                Upload Your Resume
-                <ArrowRight size={18} />
-              </button>
+              <div className="mt-6 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => navigate(ctaRoute)}
+                  className="flex items-center gap-2 rounded-lg bg-emerald-500 px-6 py-3 text-lg font-semibold text-white transition hover:bg-emerald-600"
+                >
+                  Upload Your Resume
+                  <ArrowRight size={18} />
+                </button>
+              </div>
               <p className="mt-5 inline-flex w-full items-center justify-center gap-2 text-sm font-semibold text-slate-600">
                 <ShieldCheck size={16} className="text-slate-500" />
                 Privacy guaranteed
