@@ -50,6 +50,11 @@ export const Auth: React.FC = () => {
     setSuccessMessage('Login successful. Redirecting...');
     await new Promise((resolve) => setTimeout(resolve, 500));
     navigate('/', { replace: true });
+    setTimeout(() => {
+      if (window.location.pathname !== '/') {
+        window.location.replace('/');
+      }
+    }, 50);
   };
 
   const handleRegister = async () => {
