@@ -239,6 +239,11 @@ class ResumeOptimizerRequestSerializer(serializers.Serializer):
     job_title = serializers.CharField(max_length=255)
     job_description = serializers.CharField()
     requirements = serializers.CharField(required=False, allow_blank=True, default='')
+    degree_or_role = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
+    primary_tech_stack = serializers.CharField(required=False, allow_blank=True, default='')
+    technologies = serializers.CharField(required=False, allow_blank=True, default='')
+    project_name = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
+    key_skills_or_features = serializers.CharField(required=False, allow_blank=True, default='')
 
     def validate_company_name(self, value):
         if len(value.strip()) < 2:

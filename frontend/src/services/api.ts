@@ -162,6 +162,11 @@ export const resumeOptimizerService = {
     jobTitle: string;
     jobDescription: string;
     requirements?: string;
+    degreeOrRole?: string;
+    primaryTechStack?: string;
+    technologies?: string;
+    projectName?: string;
+    keySkillsOrFeatures?: string;
     resumeId?: number;
   }) => {
     const formData = new FormData();
@@ -170,6 +175,11 @@ export const resumeOptimizerService = {
     formData.append('job_title', data.jobTitle);
     formData.append('job_description', data.jobDescription);
     formData.append('requirements', data.requirements || '');
+    formData.append('degree_or_role', data.degreeOrRole || '');
+    formData.append('primary_tech_stack', data.primaryTechStack || '');
+    formData.append('technologies', data.technologies || '');
+    formData.append('project_name', data.projectName || '');
+    formData.append('key_skills_or_features', data.keySkillsOrFeatures || '');
 
     if (typeof data.resumeId === 'number') {
       formData.append('resume_id', String(data.resumeId));

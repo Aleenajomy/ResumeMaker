@@ -30,7 +30,7 @@ Primary endpoint:
 5. Add company details + job description (+ optional requirements).
 6. Select the uploaded `.tex` resume.
 7. Generate documents.
-8. Download resume PDF, cover letter PDF/DOCX, and copy the generated email.
+8. Download resume PDF, cover letter PDF/DOCX, and copy/download the generated email.
 
 ## Template Behavior
 
@@ -63,7 +63,7 @@ If placeholders are absent, section-based editing is used while preserving layou
 - Returns:
   - `email_subject`
   - `email_body`
-- Frontend shows it as a single copy-ready block.
+- Frontend shows it as a copy-ready block and allows TXT download.
 
 ## Tech Stack
 
