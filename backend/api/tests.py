@@ -466,6 +466,8 @@ class ApplicationDocsPromptTests(SimpleTestCase):
         self.assertIn("Thank you for your time and consideration.", result['email_body'])
         self.assertIn("Warm regards,", result['email_body'])
         self.assertIn("Application for Backend Developer", result['email_subject'])
+        self.assertIn("I am writing to apply for the Backend Developer position at Acme.", result['cover_letter_text'])
+        self.assertIn("I am confident that my foundation, willingness to learn, and collaborative mindset", result['cover_letter_text'])
 
     @patch('api.ai_service.AIService._call_openai_with_retry')
     def test_generate_application_documents_includes_portfolio_line_when_available(self, mock_ai_call):
@@ -494,10 +496,46 @@ class ApplicationDocsPromptTests(SimpleTestCase):
             },
         )
 
-        self.assertIn("You can also view my portfolio and project details at:", result['email_body'])
+        self.assertIn("You can view my portfolio and projects here:", result['email_body'])
         self.assertIn("https://aleenajomy.github.io/", result['email_body'])
         self.assertIn("LinkedIn: https://linkedin.com/in/aleena-jomy", result['email_body'])
-        self.assertIn("GitHub: https://github.com/Aleenajomy", result['email_body'])
+        self.assertIn("GitHub:\nhttps://github.com/Aleenajomy", result['email_body'])
+
+    @patch('api.ai_service.AIService._call_openai_with_retry')
+    def test_generate_application_documents_adapts_for_non_technical_jobs(self, mock_ai_call):
+        mock_ai_call.return_value = (
+            {
+                'cover_letter_text': 'C' * 260,
+                'email_subject': 'Custom subject from model',
+                'email_body': 'Draft body from model.',
+            },
+            {'prompt_tokens': 12, 'completion_tokens': 28, 'total_tokens': 40},
+        )
+
+        result = AIService.generate_application_documents(
+            user_profile={
+                'full_name': 'Aleena Jomy',
+                'email': 'aleena@example.com',
+                'phone': '+91-9999999999',
+                'location': 'Kannur, Kerala',
+                'skills': ['Communication', 'Stakeholder coordination', 'Recruitment operations'],
+            },
+            tailored_resume_text='Python Django APIs testing and backend engineering experience.',
+            job_data={
+                'company_name': 'Acme',
+                'job_title': 'HR Recruiter',
+                'job_description': 'Manage hiring pipeline, screen candidates, coordinate interviews, and work with hiring managers.',
+                'requirements': 'Strong communication, stakeholder management, and process discipline.',
+            },
+        )
+
+        self.assertEqual(result['email_subject'], 'Application for HR Recruiter Position')
+        self.assertIn("structured execution, clear communication, and stakeholder-focused collaboration", result['email_body'])
+        self.assertNotIn("software development workflows", result['email_body'])
+        self.assertIn("Phone: +91-9999999999", result['email_body'])
+        self.assertIn("Email: aleena@example.com", result['email_body'])
+        self.assertIn("I have a strong interest in business operations, stakeholder collaboration, and measurable execution", result['cover_letter_text'])
+        self.assertNotIn("technology-driven problem solving and product delivery", result['cover_letter_text'])
 
 
 class CoverLetterTemplateFormattingTests(SimpleTestCase):
@@ -555,6 +593,26 @@ class CoverLetterTemplateFormattingTests(SimpleTestCase):
 
         body_section = formatted.split("Dear Hiring Manager,\n", 1)[1].split("\n\nWarm regards,", 1)[0]
         self.assertGreaterEqual(body_section.count("\n\n"), 2)
+
+    def test_format_cover_letter_template_builds_domain_adaptive_body_when_empty(self):
+        formatted = AIService.format_cover_letter_template(
+            user_profile={
+                'full_name': 'Aleena Jomy',
+                'skills': ['Stakeholder communication', 'Hiring coordination'],
+            },
+            job_data={
+                'company_name': 'Acme',
+                'job_title': 'HR Recruiter',
+                'job_description': 'Coordinate interviews and manage candidate communication.',
+                'requirements': 'Strong communication and process ownership.',
+                'company_location': 'Remote',
+            },
+            body_text='',
+        )
+
+        self.assertIn("I am writing to apply for the HR Recruiter position at Acme.", formatted)
+        self.assertIn("business operations, stakeholder collaboration, and measurable execution", formatted)
+        self.assertNotIn("software development workflows", formatted)
 
 
 class AIJsonParsingTests(SimpleTestCase):

@@ -244,12 +244,11 @@ class AIService:
         company_location = str(job_data.get('company_location', '')).strip() or 'Company Location'
         today = datetime.utcnow().strftime('%d/%m/%Y')
 
-        cleaned_body = AIService._clean_cover_letter_body(body_text)
-        if not cleaned_body:
-            cleaned_body = (
-                "I am writing to apply for this position and would welcome the opportunity "
-                "to contribute my skills to your team."
-            )
+        cover_letter_body = AIService._build_cover_letter_body_hybrid(
+            user_profile=user_profile,
+            job_data=job_data,
+            existing_body=body_text,
+        )
 
         lines = [
             full_name,
@@ -266,12 +265,89 @@ class AIService:
             company_location,
             "",
             "Dear Hiring Manager,",
-            cleaned_body,
+            cover_letter_body,
             "",
             "Warm regards,",
             full_name,
         ]
         return '\n'.join(lines)
+
+    @staticmethod
+    def _cover_letter_domain_interest(domain: str) -> str:
+        if domain == 'technical':
+            return "technology-driven problem solving and product delivery"
+        if domain == 'non_technical':
+            return "business operations, stakeholder collaboration, and measurable execution"
+        return "cross-functional problem solving and practical execution"
+
+    @staticmethod
+    def _build_cover_letter_body_hybrid(
+        user_profile: Dict[str, Any],
+        job_data: Dict[str, Any],
+        existing_body: str,
+    ) -> str:
+        role = str(job_data.get('job_title', '')).strip() or "this role"
+        company = str(job_data.get('company_name', '')).strip() or "your organization"
+        requirements = str(job_data.get('requirements', '')).strip()
+        domain = AIService._detect_job_domain(job_data)
+        domain_interest = AIService._cover_letter_domain_interest(domain)
+
+        skills = user_profile.get('skills', []) if isinstance(user_profile.get('skills', []), list) else []
+        normalized_skills = [str(skill).strip() for skill in skills if str(skill).strip()]
+        key_skills = ", ".join(normalized_skills[:4]) or "problem solving, collaboration, and execution"
+
+        intro_paragraph = (
+            f"I am writing to apply for the {role} position at {company}. "
+            f"I have a strong interest in {domain_interest}, and I am eager to contribute my skills and "
+            "problem-solving abilities to your team."
+        )
+
+        experience_paragraph = (
+            f"I have hands-on experience in areas such as {key_skills}. "
+            "Through academic work, internships, and project-based experience, I have developed practical "
+            "exposure to delivering reliable and efficient outcomes."
+        )
+
+        project_focus = AIService._truncate_text(requirements, 220)
+        project_focus = re.sub(r'[\s.]+$', '', project_focus)
+        if not project_focus:
+            project_focus = "role-relevant planning, execution, and continuous improvement"
+
+        project_paragraph = (
+            f"In my recent work, I focused on {project_focus}. "
+            f"This helped me strengthen my understanding of {domain_interest} while improving my ability "
+            "to execute maintainable and scalable solutions."
+        )
+
+        company_reason_paragraph = (
+            f"I am particularly interested in this opportunity at {company} because it aligns with my background "
+            "and provides a strong environment to contribute, collaborate, and continue learning."
+        )
+
+        confidence_paragraph = (
+            "I am confident that my foundation, willingness to learn, and collaborative mindset would allow me "
+            "to contribute effectively to your organization."
+        )
+
+        cleaned_ai_body = AIService._clean_cover_letter_body(existing_body)
+        if cleaned_ai_body:
+            cleaned_ai_body = AIService._ensure_cover_letter_paragraph_flow(cleaned_ai_body)
+            sections = [
+                intro_paragraph,
+                cleaned_ai_body,
+                company_reason_paragraph,
+                confidence_paragraph,
+            ]
+        else:
+            sections = [
+                intro_paragraph,
+                experience_paragraph,
+                project_paragraph,
+                company_reason_paragraph,
+                confidence_paragraph,
+            ]
+
+        return '\n\n'.join(section.strip() for section in sections if section and section.strip())
 
     @staticmethod
     def _truncate_text(value: str, max_chars: int) -> str:
@@ -665,16 +741,13 @@ Return JSON with this exact schema:
     @staticmethod
     def _ensure_email_subject_has_company(email_subject: str, job_data: Dict[str, Any]) -> str:
         subject = str(email_subject or '').strip()
-        if not subject:
-            return subject
-
-        if subject.lower().startswith('application for'):
-            return subject
 
         role = str((job_data or {}).get('job_title', '')).strip()
         if role:
             return f"Application for {role} Position"
-        return subject
+        if subject:
+            return subject
+        return "Application for Position"
 
     @staticmethod
     def _clean_email_body(body_text: str, full_name: str) -> str:
@@ -713,6 +786,73 @@ Return JSON with this exact schema:
         return text
 
     @staticmethod
+    def _detect_job_domain(job_data: Dict[str, Any]) -> str:
+        combined_text = " ".join(
+            [
+                str((job_data or {}).get('job_title', '')).strip(),
+                str((job_data or {}).get('job_description', '')).strip(),
+                str((job_data or {}).get('requirements', '')).strip(),
+            ]
+        ).lower()
+
+        if not combined_text:
+            return 'mixed'
+
+        technical_keywords = (
+            'developer', 'engineer', 'software', 'programming', 'python', 'java', 'javascript',
+            'react', 'node', 'api', 'backend', 'frontend', 'cloud', 'aws', 'docker', 'kubernetes',
+            'sql', 'database', 'testing', 'devops', 'machine learning', 'data science',
+        )
+        non_technical_keywords = (
+            'sales', 'marketing', 'operations', 'recruiter', 'human resources', 'hr',
+            'customer', 'support', 'business development', 'finance', 'accounting',
+            'administration', 'coordinator', 'manager', 'executive assistant', 'teacher',
+            'content', 'procurement', 'logistics', 'hospitality',
+        )
+
+        tech_score = sum(1 for token in technical_keywords if token in combined_text)
+        non_tech_score = sum(1 for token in non_technical_keywords if token in combined_text)
+
+        if tech_score >= non_tech_score + 2 and tech_score >= 2:
+            return 'technical'
+        if non_tech_score >= tech_score + 2 and non_tech_score >= 2:
+            return 'non_technical'
+        return 'mixed'
+
+    @staticmethod
+    def _build_domain_alignment_paragraph(
+        domain: str,
+        role: str,
+        company: str,
+        top_skills: str,
+        requirements: str,
+    ) -> str:
+        skill_phrase = top_skills or "problem solving, collaboration, and execution"
+        clean_requirements = AIService._truncate_text(str(requirements or '').strip(), 220)
+        clean_requirements = re.sub(r'[\s.]+$', '', clean_requirements)
+
+        if domain == 'technical':
+            paragraph = (
+                f"My background in {skill_phrase} aligns with the core expectations for the {role} role at {company}. "
+                "I focus on translating requirements into practical, reliable solutions and collaborating effectively to deliver quality outcomes."
+            )
+        elif domain == 'non_technical':
+            paragraph = (
+                f"My experience in {skill_phrase} aligns with the responsibilities of the {role} role at {company}. "
+                "I bring structured execution, clear communication, and stakeholder-focused collaboration to deliver measurable results."
+            )
+        else:
+            paragraph = (
+                f"My profile combines {skill_phrase}, analytical thinking, and collaborative execution, which aligns well with the {role} role at {company}. "
+                "I can adapt to both operational and technical expectations while maintaining delivery quality."
+            )
+
+        if clean_requirements:
+            paragraph = f"{paragraph} I can contribute to priorities such as {clean_requirements}."
+
+        return paragraph
+
+    @staticmethod
     def _build_email_body_fallback(
         user_profile: Dict[str, Any],
         job_data: Dict[str, Any],
@@ -723,13 +863,14 @@ Return JSON with this exact schema:
             or str(user_profile.get('name', '')).strip()
             or "Candidate"
         )
-        role = str(job_data.get('job_title', '')).strip() or "Software Developer"
+        role = str(job_data.get('job_title', '')).strip() or "this role"
         company = str(job_data.get('company_name', '')).strip() or "your organization"
-        company_location = str(job_data.get('company_location', '')).strip()
+        requirements = str(job_data.get('requirements', '')).strip()
         skills = user_profile.get('skills', []) if isinstance(user_profile.get('skills', []), list) else []
-        top_skills = ", ".join([str(skill).strip() for skill in skills[:3] if str(skill).strip()])
+        normalized_skills = [str(skill).strip() for skill in skills if str(skill).strip()]
+        top_skills = ", ".join(normalized_skills[:4])
         if not top_skills:
-            top_skills = "software development, backend engineering, and problem solving"
+            top_skills = "problem solving, collaboration, and execution"
 
         phone = str(user_profile.get('phone', '')).strip()
         email = str(user_profile.get('email', '')).strip()
@@ -738,36 +879,55 @@ Return JSON with this exact schema:
         linkedin = AIService._normalize_public_url(user_profile.get('linkedin_url', ''))
         github = AIService._normalize_public_url(user_profile.get('github_url', ''))
 
+        domain = AIService._detect_job_domain(job_data)
+        alignment_paragraph = AIService._build_domain_alignment_paragraph(
+            domain=domain,
+            role=role,
+            company=company,
+            top_skills=top_skills,
+            requirements=requirements,
+        )
         cleaned_ai_body = AIService._clean_email_body(existing_body, full_name=full_name)
-        opening = [
+        lines: List[str] = [
             "Dear Hiring Team,",
             "",
             "I hope you are doing well.",
             "",
+            f"My name is {full_name}, and I am writing to apply for the {role} position at {company}.",
+            "",
+            alignment_paragraph,
         ]
 
-        intro_line = f"My name is {full_name}, and I am writing to apply for the {role} position at {company}"
-        if company_location:
-            intro_line = f"{intro_line}, {company_location}."
-        else:
-            intro_line = f"{intro_line}."
-
-        fallback_fit = (
-            f"I bring a strong foundation in {top_skills}. "
-            "I am confident in my ability to contribute through clean, maintainable implementation, "
-            "effective collaboration, and a consistent learning mindset."
-        )
-
-        mid_sections = [intro_line]
         if cleaned_ai_body:
-            mid_sections.append(cleaned_ai_body)
+            lines.extend(["", cleaned_ai_body])
         else:
-            mid_sections.append(fallback_fit)
+            if domain == 'technical':
+                lines.extend([
+                    "",
+                    "I am comfortable working in fast-paced engineering environments and improving delivery quality through clear communication and ownership.",
+                ])
+            elif domain == 'non_technical':
+                lines.extend([
+                    "",
+                    "I am comfortable handling role-specific responsibilities with accountability, clear communication, and a strong focus on team outcomes.",
+                ])
+            else:
+                lines.extend([
+                    "",
+                    "I am confident in adapting to diverse responsibilities and contributing effectively through structured execution and collaboration.",
+                ])
 
         if portfolio:
-            mid_sections.append(f"You can also view my portfolio and project details at:\n{portfolio}")
+            lines.extend(["", "You can view my portfolio and projects here:", portfolio])
 
-        closing_sections = [
+        if github:
+            lines.extend(["", "GitHub:", github])
+
+        if linkedin:
+            lines.extend(["", f"LinkedIn: {linkedin}"])
+
+        lines.extend([
+            "",
             "I have attached my updated resume for your review. I would be grateful for the opportunity "
             "to participate in the selection process and discuss how I can contribute to your organization.",
             "",
@@ -775,26 +935,16 @@ Return JSON with this exact schema:
             "",
             "Warm regards,",
             full_name,
-        ]
+        ])
 
         if location:
-            closing_sections.append(location)
+            lines.append(location)
         if phone:
-            closing_sections.append(f"Phone: {phone}")
+            lines.append(f"Phone: {phone}")
         if email:
-            closing_sections.append(f"Email: {email}")
-        if linkedin:
-            closing_sections.append(f"LinkedIn: {linkedin}")
-        if github:
-            closing_sections.append(f"GitHub: {github}")
+            lines.append(f"Email: {email}")
 
-        return "\n".join(
-            opening
-            + [mid_sections[0], "", mid_sections[1]]
-            + (["", mid_sections[2]] if len(mid_sections) > 2 else [])
-            + ["", closing_sections[0], ""]
-            + closing_sections[2:]
-        )
+        return "\n".join(lines)
 
     @staticmethod
     def _validate_application_docs_payload(
@@ -811,10 +961,6 @@ Return JSON with this exact schema:
 
         if not cover_letter_text:
             raise ValueError("AI response missing cover_letter_text")
-        if not email_subject:
-            raise ValueError("AI response missing email_subject")
-        if not email_body:
-            raise ValueError("AI response missing email_body")
 
         email_body = AIService._build_email_body_fallback(
             user_profile=user_profile,
@@ -866,10 +1012,14 @@ Cover letter generation instruction:
 Write a professional cover letter tailored to this job description based on the candidate resume.
 Length: 250-350 words.
 Professional tone.
+Infer whether the role is technical, non-technical, or mixed from the job title + description + requirements.
+Use domain-appropriate wording and avoid unnecessary technical jargon for non-technical roles.
 
 Email generation instruction:
 Generate a professional job application email.
 Keep it concise but substantive (about 90-140 words) in 2-3 short paragraphs.
+Infer job domain from title + description + requirements (technical, non-technical, or mixed) and adapt wording accordingly.
+Avoid technical jargon for non-technical roles unless explicitly present in the job description.
 Subject line included via the "email_subject" field.
 The "email_body" must start with "Dear Hiring Team," and contain only the email body."""
 

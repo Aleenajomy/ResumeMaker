@@ -717,6 +717,11 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
         job_title = str(validated_data.get('job_title', '')).strip()
         job_description = str(validated_data.get('job_description', '')).strip()
         requirements = str(validated_data.get('requirements', '')).strip()
+        degree_or_role = str(validated_data.get('degree_or_role', '')).strip()
+        primary_tech_stack = str(validated_data.get('primary_tech_stack', '')).strip()
+        technologies = str(validated_data.get('technologies', '')).strip()
+        project_name = str(validated_data.get('project_name', '')).strip()
+        key_skills_or_features = str(validated_data.get('key_skills_or_features', '')).strip()
 
         try:
             source_resume, source_resume_data = self._resolve_resume(
@@ -732,6 +737,11 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
                 'job_title': job_title,
                 'job_description': job_description,
                 'requirements': requirements,
+                'degree_or_role': degree_or_role,
+                'primary_tech_stack': primary_tech_stack,
+                'technologies': technologies,
+                'project_name': project_name,
+                'key_skills_or_features': key_skills_or_features,
                 'created_at': timezone.now().isoformat(),
             }
             job_data = {
@@ -740,6 +750,11 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
                 'job_title': job_title,
                 'job_description': job_description,
                 'requirements': requirements,
+                'degree_or_role': degree_or_role,
+                'primary_tech_stack': primary_tech_stack,
+                'technologies': technologies,
+                'project_name': project_name,
+                'key_skills_or_features': key_skills_or_features,
             }
             user_profile = self._build_user_profile_payload(request.user)
 
