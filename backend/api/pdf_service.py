@@ -60,9 +60,12 @@ class PDFService:
         try:
             for variant_name, candidate_text in candidates:
                 with tempfile.TemporaryDirectory() as temp_dir:
-                    temp_path = Path(temp_dir)
+                    temp_path = Path(temp_dir).resolve()
                     tex_path = temp_path / 'resume.tex'
                     tex_path.write_text(candidate_text, encoding='utf-8')
+                    # Ensure the tex file is confined within the temp directory.
+                    if not str(tex_path.resolve()).startswith(str(temp_path)):
+                        raise ValueError("Unexpected path traversal detected in LaTeX temp file.")
                     try:
                         pdf_path = Path(
                             compile_latex(
@@ -227,8 +230,8 @@ class PDFService:
         if not content or not content.strip():
             raise ValueError("Cover letter content is empty")
 
+        pdf_file = BytesIO()
         try:
-            pdf_file = BytesIO()
             doc = SimpleDocTemplate(
                 pdf_file,
                 pagesize=letter,
@@ -238,11 +241,11 @@ class PDFService:
                 bottomMargin=72,
             )
             story = PDFService._build_cover_letter_story(content=content, name=name)
-
             doc.build(story)
             pdf_file.seek(0)
             return pdf_file
         except Exception as e:
+            pdf_file.close()
             logger.error(f"Error generating cover letter PDF: {str(e)}")
             raise ValueError(f"Failed to generate cover letter PDF: {str(e)}")
 

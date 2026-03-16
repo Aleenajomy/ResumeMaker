@@ -180,7 +180,7 @@ class ResumeViewSet(viewsets.ModelViewSet):
             raise
         except Exception as exc:
             logger.error(f"Error processing resume: {str(exc)}")
-            raise Exception(f"Failed to process resume: {str(exc)}")
+            raise RuntimeError(f"Failed to process resume: {str(exc)}")
 
     def create(self, request, *args, **kwargs):
         try:
@@ -228,7 +228,7 @@ class JobDescriptionViewSet(viewsets.ModelViewSet):
             raise
         except Exception as exc:
             logger.error(f"Error processing job description: {str(exc)}")
-            raise Exception(f"Failed to process job description: {str(exc)}")
+            raise RuntimeError(f"Failed to process job description: {str(exc)}")
 
     def create(self, request, *args, **kwargs):
         try:

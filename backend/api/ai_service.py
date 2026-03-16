@@ -60,7 +60,7 @@ Rules:
 Return strict JSON only with keys:
 headline, summary, skills, changes_made.
 If a section was missing in input, return an empty string for that key.
-headline must always be an empty string.
+headline must be a concise professional title line (e.g. "Backend Engineer | Python | Django") or empty string if no headline exists.
 """
 
 PLAIN_TEXT_SECTION_SYSTEM_PROMPT = """
@@ -558,17 +558,21 @@ Job Description:
 {job_description}"""
 
         try:
-            response = client.chat.completions.create(
+            openai_client = AIService._get_client()
+            response = openai_client.chat.completions.create(
                 model=MODEL_NAME,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
+                max_tokens=1024,
                 timeout=30,
             )
             content = response.choices[0].message.content
             return content.strip() if content else ''
+        except (AIServiceUnavailableError, AIServiceProviderError):
+            raise
         except Exception as exc:
             logger.error(f"Error generating cover letter: {str(exc)}")
-            raise Exception(f"Failed to generate cover letter: {str(exc)}")
+            raise AIServiceProviderError(f"Failed to generate cover letter: {str(exc)}")
 
     @staticmethod
     def _validate_generated_document_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -1491,7 +1495,7 @@ Current Skills Section:
 
 Return JSON with this exact schema:
 {{
-  "headline": "",
+  "headline": "string or empty string",
   "summary": "string",
   "skills": "string",
   "changes_made": ["string"]
@@ -1511,10 +1515,14 @@ Return JSON with this exact schema:
         if not summary_update:
             summary_update = summary_content
 
-        skills_update = AIService.build_latex_skills_section_update(
-            skills_content=skills_content,
-            job_description=str(job_data.get('job_description', '')),
-        )
+        ai_skills_update = AIService._sanitize_latex_section_update(str(payload.get('skills', '')).strip())
+        if ai_skills_update:
+            skills_update = ai_skills_update
+        else:
+            skills_update = AIService.build_latex_skills_section_update(
+                skills_content=skills_content,
+                job_description=str(job_data.get('job_description', '')),
+            )
         section_updates: Dict[str, str] = {
             'summary': summary_update,
             'skills': skills_update,
@@ -1526,14 +1534,22 @@ Return JSON with this exact schema:
             section_updates=section_updates,
         )
 
+        headline_update = AIService._sanitize_latex_headline_update(str(payload.get('headline', '')).strip())
+
+        # Apply headline update directly into the LaTeX if a structural match is found.
+        if headline_update:
+            headline_metadata = AIService.extract_latex_headline(updated_latex)
+            if headline_metadata:
+                updated_latex = AIService.apply_latex_headline_update(
+                    latex_text=updated_latex,
+                    headline_metadata=headline_metadata,
+                    updated_headline=headline_update,
+                )
+
         raw_changes = payload.get('changes_made', [])
         if not isinstance(raw_changes, list):
             raw_changes = []
-        changes_made = [
-            str(item).strip()
-            for item in raw_changes
-            if str(item).strip() and 'headline' not in str(item).lower() and 'header' not in str(item).lower()
-        ]
+        changes_made = [str(item).strip() for item in raw_changes if str(item).strip()]
         if section_updates['skills'] and section_updates['skills'] != skills_content:
             changes_made.append("Reordered existing skills to prioritize job-relevant matches from the original skills list.")
         changes_made = AIService._dedupe_preserve_order(changes_made)
@@ -1542,7 +1558,7 @@ Return JSON with this exact schema:
             'updated_latex': updated_latex,
             'changes_made': changes_made,
             'sections_found': list(section_map.keys()),
-            'headline_update': '',
+            'headline_update': headline_update,
             'summary_update': section_updates['summary'],
             'skills_update': section_updates['skills'],
             'token_usage': usage,
