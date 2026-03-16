@@ -81,27 +81,18 @@ export const Home: React.FC = () => {
     alert('Email copied to clipboard');
   };
 
-  const handleDownloadEmail = () => {
-    if (!result) return;
-
-    const sanitize = (value: string) =>
-      value
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '')
-        .slice(0, 40) || 'email';
-
-    const fileName = `application_email_${sanitize(companyName)}_${sanitize(jobTitle)}.txt`;
-    const fullEmail = `Subject: ${result.email_subject}\n\n${result.email_body}`;
-    const blob = new Blob([fullEmail], { type: 'text/plain;charset=utf-8' });
-    const objectUrl = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = objectUrl;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(objectUrl);
+  const handleCopyLatex = async () => {
+    if (!result?.tailored_resume_tex) return;
+    try {
+      // tailored_resume_tex is a data URL — decode it
+      const dataUrl = result.tailored_resume_tex;
+      const base64 = dataUrl.split(',')[1];
+      const decoded = atob(base64);
+      await navigator.clipboard.writeText(decoded);
+      alert('LaTeX code copied to clipboard');
+    } catch {
+      alert('Failed to copy LaTeX code');
+    }
   };
 
   const handleDownload = async (path: string | null, fileName: string) => {
@@ -476,14 +467,16 @@ export const Home: React.FC = () => {
                     <Copy size={18} />
                     Copy Professional Email
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleDownloadEmail}
-                    className="flex items-center justify-center gap-2 rounded-lg bg-slate-700 py-3 text-white hover:bg-slate-800"
-                  >
-                    <Download size={18} />
-                    Download Email TXT
-                  </button>
+                  {result.tailored_resume_tex && (
+                    <button
+                      type="button"
+                      onClick={handleCopyLatex}
+                      className="flex items-center justify-center gap-2 rounded-lg bg-slate-700 py-3 text-white hover:bg-slate-800"
+                    >
+                      <Copy size={18} />
+                      Copy LaTeX Code
+                    </button>
+                  )}
                   <button
                     onClick={() => setShowDiff((prev) => !prev)}
                     className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 py-3 text-white hover:bg-emerald-700"
