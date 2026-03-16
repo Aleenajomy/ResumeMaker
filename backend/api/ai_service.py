@@ -56,6 +56,8 @@ Rules:
 - Keep the LaTeX structure already used inside those sections.
 - Use concise, grammatical, professional, ATS-friendly wording.
 - Avoid awkward phrasing and unnecessary repetition.
+- Do not repeat the same word or phrase more than once in the summary or skills output.
+- Correct all grammar errors in the summary.
 - Do not include markdown code fences.
 Summary generation rules:
 - Write 3-4 lines, ATS-optimized, tailored to the job description.
@@ -63,6 +65,7 @@ Summary generation rules:
 - If the job description mentions a technology NOT in the allowed skills list but is clearly adjacent or entry-level learnable, you may include it as: "(Beginner - Currently Learning)".
 - Do not fabricate experience. Keep the summary truthful and aligned with a Computer Science graduate profile.
 - Prioritize top technical keywords extracted from the job description.
+- Ensure no word or technology is listed more than once across the entire summary.
 Return strict JSON only with keys:
 headline, summary, skills, changes_made.
 If a section was missing in input, return an empty string for that key.
@@ -79,12 +82,15 @@ Rules:
   3) Skills section wording.
 - Do not add or remove section headings.
 - Do not include markdown code fences.
+- Do not repeat the same word or phrase more than once in the summary or skills output.
+- Correct all grammar errors in the summary.
 Summary generation rules:
 - Write 3-4 lines, ATS-optimized, tailored to the job description.
 - Use only skills and technologies present in the candidate's resume.
 - If the job description mentions a technology NOT in the candidate's skills but is clearly adjacent or entry-level learnable, you may include it as: "(Beginner - Currently Learning)".
 - Do not fabricate experience. Keep the summary truthful and aligned with the candidate's actual background.
 - Prioritize top technical keywords extracted from the job description.
+- Ensure no word or technology is listed more than once across the entire summary.
 Return strict JSON only with keys:
 headline, summary, skills, changes_made.
 If a section was missing in input, return an empty string for that key.
@@ -1310,8 +1316,10 @@ The "email_body" must start with "Dear Hiring Team," and contain only the email 
             return ''
 
         if re.search(r'\\section\*?\{', cleaned):
+            logger.warning("_sanitize_latex_section_update: rejected AI output containing \\section command — falling back to original.")
             return ''
         if '\\begin{document}' in cleaned or '\\end{document}' in cleaned:
+            logger.warning("_sanitize_latex_section_update: rejected AI output containing document environment — falling back to original.")
             return ''
 
         return cleaned
