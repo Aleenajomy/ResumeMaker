@@ -24,6 +24,7 @@ export const Home: React.FC = () => {
   const [selectedResumeId, setSelectedResumeId] = useState<number | null>(null);
 
   const [result, setResult] = useState<GeneratedDocument | null>(null);
+  const [originalLatex, setOriginalLatex] = useState<string>('');
   const [showDiff, setShowDiff] = useState(false);
   const [diffMode, setDiffMode] = useState<'summary' | 'highlight'>('summary');
 
@@ -57,6 +58,7 @@ export const Home: React.FC = () => {
 
   const resetForm = () => {
     setResult(null);
+    setOriginalLatex('');
     setShowDiff(false);
     setDiffMode('summary');
     setCompanyName('');
@@ -81,18 +83,21 @@ export const Home: React.FC = () => {
     alert('Email copied to clipboard');
   };
 
-  const handleCopyLatex = async () => {
-    if (!result?.tailored_resume_tex) return;
-    try {
-      // tailored_resume_tex is a data URL — decode it
-      const dataUrl = result.tailored_resume_tex;
-      const base64 = dataUrl.split(',')[1];
-      const decoded = atob(base64);
-      await navigator.clipboard.writeText(decoded);
-      alert('LaTeX code copied to clipboard');
-    } catch {
-      alert('Failed to copy LaTeX code');
-    }
+  const handleDownloadEmail = () => {
+    if (!result) return;
+    const sanitize = (value: string) =>
+      value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'email';
+    const fileName = `application_email_${sanitize(companyName)}_${sanitize(jobTitle)}.txt`;
+    const fullEmail = `Subject: ${result.email_subject}\n\n${result.email_body}`;
+    const blob = new Blob([fullEmail], { type: 'text/plain;charset=utf-8' });
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
   };
 
   const handleDownload = async (path: string | null, fileName: string) => {
@@ -151,6 +156,23 @@ export const Home: React.FC = () => {
 
     setLoadingGenerate(true);
     try {
+      // Fetch original .tex before generating so Before panel has proper line structure
+      const selectedResume = latexResumes.find((r) => r.id === selectedResumeId);
+      if (selectedResume?.latex_file) {
+        try {
+          const token = getAccessToken();
+          const latexUrl = selectedResume.latex_file.startsWith('http')
+            ? selectedResume.latex_file
+            : `${backendUrl}${selectedResume.latex_file}`;
+          const latexRes = await fetch(latexUrl, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          });
+          setOriginalLatex(await latexRes.text());
+        } catch {
+          setOriginalLatex('');
+        }
+      }
+
       const response = await resumeOptimizerService.generate({
         companyName: companyName.trim(),
         companyLocation: companyLocation.trim(),
@@ -193,11 +215,18 @@ export const Home: React.FC = () => {
       .replace(/\s{2,}/g, ' ')
       .trim();
 
+  const decodeLatexDataUrl = (dataUrl: string | null | undefined): string => {
+    if (!dataUrl) return '';
+    try {
+      return atob(dataUrl.split(',')[1]);
+    } catch {
+      return '';
+    }
+  };
+
   const diffData = useMemo(() => {
     const tokens = result?.diff_json || [];
-    if (!tokens.length) {
-      return null;
-    }
+    if (!tokens.length) return null;
 
     let addedCount = 0;
     let removedCount = 0;
@@ -206,49 +235,28 @@ export const Home: React.FC = () => {
     let currentWords: string[] = [];
 
     const flushGroup = () => {
-      if (!currentType || currentWords.length === 0) {
-        return;
-      }
+      if (!currentType || currentWords.length === 0) return;
       groupedChanges.push({
         type: currentType,
-        text: currentWords
-          .join(' ')
-          .replace(/\s+([,.;:!?])/g, '$1')
-          .replace(/\(\s+/g, '(')
-          .replace(/\s+\)/g, ')')
-          .replace(/\s{2,}/g, ' ')
-          .trim(),
+        text: currentWords.join(' ').replace(/\s+([,.;:!?])/g, '$1').replace(/\(\s+/g, '(').replace(/\s+\)/g, ')').replace(/\s{2,}/g, ' ').trim(),
       });
       currentWords = [];
       currentType = null;
     };
 
     for (const token of tokens) {
-      if (token.type === 'added') {
-        addedCount += 1;
-      } else if (token.type === 'removed') {
-        removedCount += 1;
-      }
-
-      if (token.type === 'unchanged') {
-        flushGroup();
-        continue;
-      }
-
-      if (!currentType || currentType === token.type) {
-        currentType = token.type;
-        currentWords.push(token.word);
-        continue;
-      }
-
+      if (token.type === 'added') addedCount += 1;
+      else if (token.type === 'removed') removedCount += 1;
+      if (token.type === 'unchanged') { flushGroup(); continue; }
+      if (!currentType || currentType === token.type) { currentType = token.type; currentWords.push(token.word); continue; }
       flushGroup();
       currentType = token.type;
       currentWords.push(token.word);
     }
     flushGroup();
 
-    const originalText = formatDiffText(tokens.filter((token) => token.type !== 'added'));
-    const updatedText = formatDiffText(tokens.filter((token) => token.type !== 'removed'));
+    const originalText = formatDiffText(tokens.filter((t) => t.type !== 'added'));
+    const updatedText = formatDiffText(tokens.filter((t) => t.type !== 'removed'));
 
     return {
       addedCount,
@@ -467,16 +475,14 @@ export const Home: React.FC = () => {
                     <Copy size={18} />
                     Copy Professional Email
                   </button>
-                  {result.tailored_resume_tex && (
-                    <button
-                      type="button"
-                      onClick={handleCopyLatex}
-                      className="flex items-center justify-center gap-2 rounded-lg bg-slate-700 py-3 text-white hover:bg-slate-800"
-                    >
-                      <Copy size={18} />
-                      Copy LaTeX Code
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleDownloadEmail}
+                    className="flex items-center justify-center gap-2 rounded-lg bg-slate-700 py-3 text-white hover:bg-slate-800"
+                  >
+                    <Download size={18} />
+                    Download Email TXT
+                  </button>
                   <button
                     onClick={() => setShowDiff((prev) => !prev)}
                     className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 py-3 text-white hover:bg-emerald-700"
@@ -578,20 +584,64 @@ export const Home: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <div className="rounded-lg border border-slate-200 p-4">
-                          <h3 className="mb-2 font-semibold text-slate-800">Before</h3>
-                          <p className="max-h-64 overflow-auto text-sm text-slate-700 whitespace-pre-wrap">
-                            {diffData.originalText}
-                          </p>
-                        </div>
-                        <div className="rounded-lg border border-slate-200 p-4">
-                          <h3 className="mb-2 font-semibold text-slate-800">After</h3>
-                          <p className="max-h-64 overflow-auto text-sm text-slate-700 whitespace-pre-wrap">
-                            {diffData.updatedText}
-                          </p>
-                        </div>
-                      </div>
+                      {(() => {
+                        const afterLatex = decodeLatexDataUrl(result?.tailored_resume_tex);
+                        const afterLines = afterLatex ? afterLatex.split('\n') : [];
+
+                        const beforeLines = originalLatex.split('\n');
+
+                        const addedSet = new Set(
+                          (result?.diff_json || []).filter((t) => t.type === 'added').map((t) => t.word)
+                        );
+                        const removedSet = new Set(
+                          (result?.diff_json || []).filter((t) => t.type === 'removed').map((t) => t.word)
+                        );
+
+                        const renderLine = (line: string, hlSet: Set<string>, color: 'red' | 'green', li: number) => {
+                          const words = line.split(' ');
+                          const changed = words.some((w) => hlSet.has(w));
+                          return (
+                            <div key={li} className={changed ? (color === 'red' ? 'bg-rose-900/40' : 'bg-emerald-900/40') : ''}>
+                              {words.map((w, wi) =>
+                                hlSet.has(w) ? (
+                                  <mark key={wi} className={color === 'red' ? 'bg-rose-600/70 text-rose-100 rounded-sm px-0.5 mr-0.5' : 'bg-emerald-600/70 text-emerald-100 rounded-sm px-0.5 mr-0.5'}>{w}</mark>
+                                ) : (
+                                  <span key={wi} className="text-slate-300">{w} </span>
+                                )
+                              )}
+                            </div>
+                          );
+                        };
+
+                        return (
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            {/* Before */}
+                            <div className="rounded-lg border border-slate-700 bg-[#1e1e2e] p-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <h3 className="font-semibold text-slate-200 text-sm">Before</h3>
+                                <button type="button" onClick={() => navigator.clipboard.writeText(originalLatex)} className="flex items-center gap-1 rounded px-2 py-1 text-xs text-slate-400 hover:bg-slate-700">
+                                  <Copy size={12} /> Copy
+                                </button>
+                              </div>
+                              <pre className="max-h-80 overflow-auto text-xs font-mono leading-5 whitespace-pre-wrap">
+                                {beforeLines.map((line, li) => renderLine(line, removedSet, 'red', li))}
+                              </pre>
+                            </div>
+                            {/* After */}
+                            <div className="rounded-lg border border-slate-700 bg-[#1e1e2e] p-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <h3 className="font-semibold text-slate-200 text-sm">After</h3>
+                                <button type="button" onClick={() => navigator.clipboard.writeText(afterLatex || diffData.updatedText)} className="flex items-center gap-1 rounded px-2 py-1 text-xs text-slate-400 hover:bg-slate-700">
+                                  <Copy size={12} /> Copy LaTeX
+                                </button>
+                              </div>
+                              <pre className="max-h-80 overflow-auto text-xs font-mono leading-5 whitespace-pre-wrap">
+                                {afterLines.map((line, li) => renderLine(line, addedSet, 'green', li))}
+                              </pre>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   ) : (
                     <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 leading-8">
