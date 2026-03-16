@@ -51,16 +51,22 @@ Rules:
 - Ignore any job description technology that is not already in the allowed skills list.
 - Keep all LaTeX commands, environments, and section order intact.
 - Do not add, remove, or rename any \\section headings.
-- Do not modify the header, Experience, Projects, Education, or any other section.
-- Modify only the content inside Summary and Skills.
-- Keep the LaTeX structure already used inside those two sections.
+- Do not modify Experience, Projects, Education, or any other section.
+- Modify only: headline line (title under name), Summary section, and Skills section.
+- Keep the LaTeX structure already used inside those sections.
 - Use concise, grammatical, professional, ATS-friendly wording.
 - Avoid awkward phrasing and unnecessary repetition.
 - Do not include markdown code fences.
+Summary generation rules:
+- Write 3-4 lines, ATS-optimized, tailored to the job description.
+- Use only skills and technologies present in the candidate's allowed skills list.
+- If the job description mentions a technology NOT in the allowed skills list but is clearly adjacent or entry-level learnable, you may include it as: "(Beginner - Currently Learning)".
+- Do not fabricate experience. Keep the summary truthful and aligned with a Computer Science graduate profile.
+- Prioritize top technical keywords extracted from the job description.
 Return strict JSON only with keys:
 headline, summary, skills, changes_made.
 If a section was missing in input, return an empty string for that key.
-headline must be a concise professional title line (e.g. "Backend Engineer | Python | Django") or empty string if no headline exists.
+headline must be a concise professional title line tailored to the job (e.g. "Backend Engineer | Python | Django") or empty string if no headline exists in the original.
 """
 
 PLAIN_TEXT_SECTION_SYSTEM_PROMPT = """
@@ -73,6 +79,12 @@ Rules:
   3) Skills section wording.
 - Do not add or remove section headings.
 - Do not include markdown code fences.
+Summary generation rules:
+- Write 3-4 lines, ATS-optimized, tailored to the job description.
+- Use only skills and technologies present in the candidate's resume.
+- If the job description mentions a technology NOT in the candidate's skills but is clearly adjacent or entry-level learnable, you may include it as: "(Beginner - Currently Learning)".
+- Do not fabricate experience. Keep the summary truthful and aligned with the candidate's actual background.
+- Prioritize top technical keywords extracted from the job description.
 Return strict JSON only with keys:
 headline, summary, skills, changes_made.
 If a section was missing in input, return an empty string for that key.
@@ -1484,7 +1496,7 @@ Job Description:
 Requirements:
 {AIService._truncate_text(str(job_data.get('requirements', '')), MAX_REQUIREMENTS_CHARS)}
 
-Allowed Skills List (extracted from the original Skills section):
+Allowed Skills List (extracted from the original Skills section — do not add anything outside this list):
 {json.dumps(allowed_skills, indent=2)}
 
 Current Summary Section:
@@ -1492,6 +1504,13 @@ Current Summary Section:
 
 Current Skills Section:
 {skills_content if skills_content else "(Missing)"}
+
+Summary instruction:
+Analyze the job description and extract the top technical keywords.
+Write a 3-4 line ATS-optimized summary for this candidate.
+Use only technologies from the Allowed Skills List.
+If the job description mentions a technology NOT in the allowed list but is entry-level learnable, include it as "(Beginner - Currently Learning)".
+Do not fabricate experience. Keep it truthful.
 
 Return JSON with this exact schema:
 {{

@@ -193,9 +193,7 @@ B.Tech in Computer Science and Engineering.
                 msg=f"{protected} section should remain unchanged",
             )
 
-        self.assertEqual('', result['headline_update'])
         self.assertEqual(33, result['token_usage']['total_tokens'])
-        self.assertNotIn('Updated headline for role alignment.', result['changes_made'])
 
 class LatexTemplatePlaceholderTests(SimpleTestCase):
     def test_has_latex_template_placeholders(self):
