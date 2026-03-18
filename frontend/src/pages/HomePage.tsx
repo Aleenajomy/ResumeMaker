@@ -196,7 +196,7 @@ export const HomePage: React.FC = () => {
               <div className="mt-6 flex justify-center">
                 <button
                   type="button"
-                  onClick={() => navigate(ctaRoute)}
+                  onClick={() => goProtected("/dashboard")}
                   className="flex items-center gap-2 rounded-lg bg-emerald-500 px-6 py-3 text-lg font-semibold text-white transition hover:bg-emerald-600"
                 >
                   Upload Your Resume

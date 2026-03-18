@@ -224,6 +224,21 @@ export const Home: React.FC = () => {
     }
   };
 
+  // Extract plain-text summary section from the tailored resume for keyword highlighting
+  const tailoredSummaryText = useMemo(() => {
+    if (!result) return '';
+    const text = result.tailored_resume_text || '';
+    if (!text) return '';
+    // Match summary section: look for Summary heading and grab content until next section
+    const summaryMatch = text.match(
+      /(?:summary|professional summary|profile|objective)[\s\S]{0,10}?\n([\s\S]{30,600}?)(?:\n\s*(?:[A-Z][A-Za-z &/\-]{2,}:?\s*\n|\\section))/i
+    );
+    if (summaryMatch) return summaryMatch[1].trim();
+    // Fallback: first 400 chars after the first blank line (covers plain text resumes)
+    const afterFirstBlank = text.replace(/^[^\n]*\n/, '').trim();
+    return afterFirstBlank.slice(0, 400).trim();
+  }, [result]);
+
   const diffData = useMemo(() => {
     const tokens = result?.diff_json || [];
     if (!tokens.length) return null;
@@ -415,6 +430,7 @@ export const Home: React.FC = () => {
                 score={result.ats_score ?? 0}
                 matchedKeywords={result.matched_keywords}
                 missingKeywords={result.missing_keywords}
+                summaryText={tailoredSummaryText}
               />
 
               <div className={panelClass}>
