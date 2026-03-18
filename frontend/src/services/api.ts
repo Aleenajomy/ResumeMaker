@@ -153,6 +153,7 @@ export const resumeService = {
 
   list: () => api.get('/resumes/'),
   delete: (id: number) => api.delete(`/resumes/${id}/`),
+  viewFile: (id: number) => api.get(`/resumes/${id}/download/`, { responseType: 'text' }),
 };
 
 export const resumeOptimizerService = {

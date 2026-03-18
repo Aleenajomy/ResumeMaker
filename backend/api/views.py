@@ -7,6 +7,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.base import ContentFile
+from django.http import FileResponse, Http404
 from django.utils.encoding import force_bytes, force_str
 from django.utils import timezone
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
@@ -144,6 +145,17 @@ class ResumeViewSet(viewsets.ModelViewSet):
         if self.action == 'list':
             return ResumeListSerializer
         return ResumeSerializer
+
+    @action(detail=True, methods=['get'], url_path='download')
+    def download(self, request, pk=None):
+        resume = self.get_object()
+        file_field = resume.latex_file or resume.original_file
+        if not file_field or not file_field.storage.exists(file_field.name):
+            raise Http404
+        response = FileResponse(file_field.open('rb'), content_type='text/plain; charset=utf-8')
+        filename = os.path.basename(file_field.name)
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        return response
 
     def perform_create(self, serializer):
         original_file = self.request.FILES.get('original_file')

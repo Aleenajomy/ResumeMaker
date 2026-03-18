@@ -19,7 +19,6 @@ export const Dashboard: React.FC = () => {
     skills: [] as string[],
   });
 
-  const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
   useEffect(() => {
     loadProfile();
@@ -352,15 +351,15 @@ export const Dashboard: React.FC = () => {
                     </div>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => {
-                          const filePath = resume.original_file || resume.latex_file;
-                          if (!filePath) {
-                            return;
+                        onClick={async () => {
+                          try {
+                            const res = await resumeService.viewFile(resume.id);
+                            const blob = new Blob([res.data], { type: 'text/plain' });
+                            const url = URL.createObjectURL(blob);
+                            window.open(url, '_blank');
+                          } catch {
+                            alert('Could not load resume file.');
                           }
-                          const url = filePath.startsWith('http')
-                            ? filePath
-                            : `${backendUrl}${filePath}`;
-                          window.open(url, '_blank');
                         }}
                         className="rounded-lg p-2 text-emerald-700 transition-colors hover:bg-emerald-50"
                         title="View"
