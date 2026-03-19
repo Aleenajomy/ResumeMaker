@@ -156,20 +156,22 @@ export const resumeService = {
   viewFile: (id: number) => api.get(`/resumes/${id}/download/`, { responseType: 'text' }),
 };
 
+type GenerateParams = {
+  companyName: string;
+  companyLocation?: string;
+  jobTitle: string;
+  jobDescription: string;
+  requirements?: string;
+  degreeOrRole?: string;
+  primaryTechStack?: string;
+  technologies?: string;
+  projectName?: string;
+  keySkillsOrFeatures?: string;
+  resumeId?: number;
+};
+
 export const resumeOptimizerService = {
-  generate: (data: {
-    companyName: string;
-    companyLocation?: string;
-    jobTitle: string;
-    jobDescription: string;
-    requirements?: string;
-    degreeOrRole?: string;
-    primaryTechStack?: string;
-    technologies?: string;
-    projectName?: string;
-    keySkillsOrFeatures?: string;
-    resumeId?: number;
-  }) => {
+  generate: (data: GenerateParams) => {
     const formData = new FormData();
     formData.append('company_name', data.companyName);
     formData.append('company_location', data.companyLocation || '');
@@ -189,7 +191,7 @@ export const resumeOptimizerService = {
     });
   },
 
-  generateAsync: (data: Parameters<typeof resumeOptimizerService.generate>[0]) => {
+  generateAsync: (data: GenerateParams) => {
     const formData = new FormData();
     formData.append('company_name', data.companyName);
     formData.append('company_location', data.companyLocation || '');

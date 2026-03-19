@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ATSScore } from '../components/ATSScore';
 import { AppHeader } from '../components/AppHeader';
 import { resumeOptimizerService, resumeService } from '../services/api';
-import { DiffToken, GeneratedDocument, OptimizerGenerateResponse, Resume } from '../types';
+import { DiffToken, GeneratedDocument, Resume } from '../types';
 import { getAccessToken } from '../utils/auth';
 import { Copy, Download, FileText, RotateCcw, Upload } from 'lucide-react';
 
