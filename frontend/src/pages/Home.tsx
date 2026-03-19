@@ -1,19 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ATSScore } from '../components/ATSScore';
 import { AppHeader } from '../components/AppHeader';
 import { resumeOptimizerService, resumeService } from '../services/api';
 import { DiffToken, GeneratedDocument, OptimizerGenerateResponse, Resume } from '../types';
 import { getAccessToken } from '../utils/auth';
-import { Copy, Download, FileText, RotateCcw } from 'lucide-react';
+import { Copy, Download, FileText, RotateCcw, Upload } from 'lucide-react';
 
 export const Home: React.FC = () => {
-  const navigate = useNavigate();
   const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [loadingResumes, setLoadingResumes] = useState(true);
   const [loadingGenerate, setLoadingGenerate] = useState(false);
+  const [generateStep, setGenerateStep] = useState('');
+  const [uploadingResume, setUploadingResume] = useState(false);
 
   const [companyName, setCompanyName] = useState('');
   const [companyLocation, setCompanyLocation] = useState('');
@@ -53,6 +53,23 @@ export const Home: React.FC = () => {
       console.error('Error loading resumes:', error);
     } finally {
       setLoadingResumes(false);
+    }
+  };
+
+  const handleInlineUpload = async (file: File) => {
+    if (!file.name.toLowerCase().endsWith('.tex')) {
+      alert('Please upload a LaTeX (.tex) file.');
+      return;
+    }
+    setUploadingResume(true);
+    try {
+      const res = await resumeService.upload(file);
+      await loadResumes();
+      setSelectedResumeId(res.data.id);
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Error uploading resume');
+    } finally {
+      setUploadingResume(false);
     }
   };
 
@@ -155,6 +172,7 @@ export const Home: React.FC = () => {
     }
 
     setLoadingGenerate(true);
+    setGenerateStep('Queuing request...');
     try {
       // Fetch original .tex before generating so Before panel has proper line structure
       const selectedResume = latexResumes.find((r) => r.id === selectedResumeId);
@@ -173,25 +191,47 @@ export const Home: React.FC = () => {
         }
       }
 
-      const response = await resumeOptimizerService.generate({
+      // Queue the task
+      const queueRes = await resumeOptimizerService.generateAsync({
         companyName: companyName.trim(),
         companyLocation: companyLocation.trim(),
         jobTitle: jobTitle.trim(),
         jobDescription: jobDescription.trim(),
         requirements: requirements.trim(),
-        resumeId: selectedResumeId,
+        resumeId: selectedResumeId ?? undefined,
       });
+      const taskId: string = queueRes.data.task_id;
+      setGenerateStep('Waiting in queue...');
 
-      const data = response.data as OptimizerGenerateResponse;
-      setResult(data.document);
-      setShowDiff(false);
-      setDiffMode('summary');
+      // Poll until done
+      const POLL_INTERVAL = 3000;
+      const MAX_POLLS = 60; // 3 min max
+      for (let i = 0; i < MAX_POLLS; i++) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+        const statusRes = await resumeOptimizerService.pollTaskStatus(taskId);
+        const { state, step, document, error } = statusRes.data;
+
+        if (state === 'PROGRESS' && step) setGenerateStep(step);
+        if (state === 'SUCCESS') {
+          setResult(document);
+          setShowDiff(false);
+          setDiffMode('summary');
+          return;
+        }
+        if (state === 'FAILURE') {
+          alert(error || 'Generation failed. Please try again.');
+          return;
+        }
+      }
+      alert('Generation timed out. Please try again.');
     } catch (error: any) {
       const status = error?.response?.status;
       const apiError = error?.response?.data;
       const message =
         (typeof apiError?.error === 'string' && apiError.error.trim()) ||
-        (status === 500
+        (status === 429
+          ? 'Too many requests. Please wait a minute before generating again.'
+          : status === 500
           ? 'Server error while generating documents. Please retry in a few seconds.'
           : 'Failed to generate optimized documents');
       const details =
@@ -202,6 +242,7 @@ export const Home: React.FC = () => {
       console.error('Optimizer generation error:', error);
     } finally {
       setLoadingGenerate(false);
+      setGenerateStep('');
     }
   };
 
@@ -375,15 +416,23 @@ export const Home: React.FC = () => {
               {loadingResumes ? (
                 <p className="text-sm text-slate-600">Loading dashboard resumes...</p>
               ) : latexResumes.length === 0 ? (
-                <div className="text-sm text-amber-700 space-y-2">
-                  <p>No `.tex` resume found in Dashboard.</p>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/dashboard')}
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 transition-colors hover:bg-slate-50"
-                  >
-                    Go to Dashboard Upload
-                  </button>
+                <div className="space-y-2">
+                  <p className="text-sm text-amber-700">No `.tex` resume found. Upload one to continue.</p>
+                  <label className={`flex h-24 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed transition-colors ${
+                    uploadingResume ? 'border-slate-300 bg-slate-50' : 'border-emerald-300 bg-emerald-50/40 hover:border-emerald-500 hover:bg-emerald-50'
+                  }`}>
+                    <Upload size={24} className="mb-1 text-emerald-600" />
+                    <span className="text-sm font-medium text-slate-700">
+                      {uploadingResume ? 'Uploading...' : 'Upload Base Resume (.tex)'}
+                    </span>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".tex"
+                      disabled={uploadingResume}
+                      onChange={(e) => e.target.files?.[0] && handleInlineUpload(e.target.files[0])}
+                    />
+                  </label>
                 </div>
               ) : (
                 <div>
@@ -411,7 +460,7 @@ export const Home: React.FC = () => {
                 disabled={loadingGenerate}
                 className="flex-1 rounded-lg bg-emerald-500 py-3 font-medium text-white transition hover:bg-emerald-600 disabled:bg-slate-400"
               >
-                {loadingGenerate ? 'Generating...' : 'Generate Documents'}
+                {loadingGenerate ? (generateStep || 'Generating...') : 'Generate Documents'}
               </button>
               <button
                 onClick={resetForm}

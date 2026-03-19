@@ -1013,6 +1013,147 @@ Return JSON with this exact schema:
         }
 
     @staticmethod
+    def generate_latex_all_documents(
+        latex_text: str,
+        job_data: Dict[str, Any],
+        user_profile: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Single AI call: optimize LaTeX resume + generate cover letter + email."""
+        if not latex_text or len(latex_text.strip()) < 30:
+            raise ValueError("LaTeX content is too short")
+
+        section_map = AIService.extract_latex_sections(latex_text)
+        if not section_map:
+            raise ValueError("Unable to detect editable LaTeX sections.")
+
+        summary_content = AIService._truncate_text(
+            section_map.get('summary', {}).get('content', ''), MAX_LATEX_SECTION_CHARS
+        )
+        skills_content = AIService._truncate_text(
+            section_map.get('skills', {}).get('content', ''), MAX_LATEX_SECTION_CHARS
+        )
+        if not summary_content and not skills_content:
+            raise ValueError("Summary or Skills section not found in LaTeX resume.")
+
+        allowed_skills = AIService.extract_allowed_skills_from_latex_section(skills_content)
+        resume_context = AIService._truncate_text(AIService.latex_to_plain_text(latex_text), MAX_RESUME_CHARS)
+
+        prompt = f"""Original Resume Context (single source of truth):
+{resume_context}
+
+User Profile:
+{json.dumps(user_profile, indent=2)}
+
+Job Title: {job_data.get('job_title', '')}
+Company: {job_data.get('company_name', '')}
+Job Description:
+{AIService._truncate_text(str(job_data.get('job_description', '')), MAX_JOB_DESCRIPTION_CHARS)}
+
+Requirements:
+{AIService._truncate_text(str(job_data.get('requirements', '')), MAX_REQUIREMENTS_CHARS)}
+
+Allowed Skills List:
+{json.dumps(allowed_skills, indent=2)}
+
+Current Summary Section:
+{summary_content if summary_content else "(Missing)"}
+
+Current Skills Section:
+{skills_content if skills_content else "(Missing)"}
+
+Return JSON with this exact schema:
+{{
+  "headline": "string or empty string",
+  "summary": "string",
+  "changes_made": ["string"],
+  "cover_letter_text": "string",
+  "email_subject": "string",
+  "email_body": "string"
+}}
+
+Resume rules: only edit headline, summary. Skills reordering is handled by backend.
+Cover letter: professional body paragraphs only, 250-350 words, no greeting/sign-off.
+Email: 90-140 words, 2-3 paragraphs, body starts with "Dear Hiring Team,"."""
+
+        combined_system = LATEX_SECTION_SYSTEM_PROMPT + "\n" + APPLICATION_DOCS_SYSTEM_PROMPT
+        payload, usage = AIService._call_openai_with_retry(
+            prompt=prompt,
+            temperature=0.35,
+            system_prompt=combined_system,
+            return_usage=True,
+        )
+
+        if not isinstance(payload, dict):
+            raise ValueError("Invalid combined response format")
+
+        # Resume sections
+        summary_update = (
+            AIService._sanitize_latex_section_update(str(payload.get('summary', '')).strip())
+            or summary_content
+        )
+        skills_update = AIService.build_latex_skills_section_update(
+            skills_content=skills_content,
+            job_description=str(job_data.get('job_description', '')),
+        )
+        updated_latex = AIService.apply_latex_section_updates(
+            latex_text=latex_text,
+            section_map=section_map,
+            section_updates={'summary': summary_update, 'skills': skills_update},
+        )
+        headline_update = AIService._sanitize_latex_headline_update(
+            str(payload.get('headline', '')).strip()
+        )
+        if headline_update:
+            headline_metadata = AIService.extract_latex_headline(updated_latex)
+            if headline_metadata:
+                updated_latex = AIService.apply_latex_headline_update(
+                    latex_text=updated_latex,
+                    headline_metadata=headline_metadata,
+                    updated_headline=headline_update,
+                )
+
+        raw_changes = payload.get('changes_made', [])
+        changes_made = AIService._dedupe_preserve_order(
+            [str(i).strip() for i in (raw_changes if isinstance(raw_changes, list) else []) if str(i).strip()]
+        )
+        if skills_update and skills_update != skills_content:
+            changes_made = AIService._dedupe_preserve_order(
+                changes_made + ["Reordered existing skills to prioritize job-relevant matches."]
+            )
+
+        # Cover letter + email
+        cover_letter_text = str(payload.get('cover_letter_text', '')).strip()
+        if not cover_letter_text:
+            raise ValueError("AI response missing cover_letter_text")
+
+        email_body = AIService._build_email_body_fallback(
+            user_profile=user_profile,
+            job_data=job_data,
+            existing_body=str(payload.get('email_body', '')).strip(),
+        )
+        email_subject = AIService._ensure_email_subject_has_company(
+            str(payload.get('email_subject', '')).strip(), job_data
+        )
+        cover_letter_text = AIService.format_cover_letter_template(
+            user_profile=user_profile,
+            job_data=job_data,
+            body_text=cover_letter_text,
+        )
+
+        return {
+            'updated_latex': updated_latex,
+            'changes_made': changes_made,
+            'sections_found': list(section_map.keys()),
+            'headline_update': headline_update,
+            'summary_update': summary_update,
+            'skills_update': skills_update,
+            'cover_letter_text': cover_letter_text,
+            'email_subject': email_subject,
+            'email_body': email_body,
+            'token_usage': usage,
+        }
+
+    @staticmethod
     def generate_application_documents(
         user_profile: Dict[str, Any],
         tailored_resume_text: str,

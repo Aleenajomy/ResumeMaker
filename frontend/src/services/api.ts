@@ -181,15 +181,36 @@ export const resumeOptimizerService = {
     formData.append('technologies', data.technologies || '');
     formData.append('project_name', data.projectName || '');
     formData.append('key_skills_or_features', data.keySkillsOrFeatures || '');
-
     if (typeof data.resumeId === 'number') {
       formData.append('resume_id', String(data.resumeId));
     }
-
     return api.post('/resume-optimizer/generate/', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+
+  generateAsync: (data: Parameters<typeof resumeOptimizerService.generate>[0]) => {
+    const formData = new FormData();
+    formData.append('company_name', data.companyName);
+    formData.append('company_location', data.companyLocation || '');
+    formData.append('job_title', data.jobTitle);
+    formData.append('job_description', data.jobDescription);
+    formData.append('requirements', data.requirements || '');
+    formData.append('degree_or_role', data.degreeOrRole || '');
+    formData.append('primary_tech_stack', data.primaryTechStack || '');
+    formData.append('technologies', data.technologies || '');
+    formData.append('project_name', data.projectName || '');
+    formData.append('key_skills_or_features', data.keySkillsOrFeatures || '');
+    if (typeof data.resumeId === 'number') {
+      formData.append('resume_id', String(data.resumeId));
+    }
+    return api.post('/resume-optimizer/generate-async/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
+  pollTaskStatus: (taskId: string) =>
+    api.get(`/resume-optimizer/task-status/${taskId}/`),
 };
 
 export default api;

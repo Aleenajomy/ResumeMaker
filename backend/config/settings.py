@@ -283,13 +283,12 @@ LOGGING = {
 }
 
 # Rate Limiting
-# REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = [
-#     'rest_framework.throttling.AnonRateThrottle',
-#     'rest_framework.throttling.UserRateThrottle',
-# ]
-# REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
-#     'anon': '10/hour',
-#     'user': '100/hour',
-# }
+REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = [
+    'rest_framework.throttling.UserRateThrottle',
+]
+REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
+    'user': '200/hour',
+    'optimizer': '10/minute',
+}
 REST_FRAMEWORK['DEFAULT_PAGINATION_CLASS'] = 'rest_framework.pagination.PageNumberPagination'
 REST_FRAMEWORK['PAGE_SIZE'] = 10
