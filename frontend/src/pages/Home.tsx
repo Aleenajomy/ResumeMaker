@@ -435,21 +435,38 @@ export const Home: React.FC = () => {
                   </label>
                 </div>
               ) : (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Select uploaded dashboard `.tex` resume
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Select uploaded `.tex` resume
+                    </label>
+                    <select
+                      value={selectedResumeId ?? ''}
+                      onChange={(e) => setSelectedResumeId(e.target.value ? Number(e.target.value) : null)}
+                      className={inputClass}
+                    >
+                      {latexResumes.map((resume) => (
+                        <option key={resume.id} value={resume.id}>
+                          Resume #{resume.id} ({new Date(resume.created_at).toLocaleDateString()})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <label className={`flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed transition-colors ${
+                    uploadingResume ? 'border-slate-300 bg-slate-50 text-slate-400' : 'border-emerald-300 bg-white text-emerald-700 hover:border-emerald-500 hover:bg-emerald-50'
+                  }`}>
+                    <Upload size={15} />
+                    <span className="text-sm font-medium">
+                      {uploadingResume ? 'Uploading...' : 'Upload a different .tex file'}
+                    </span>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".tex"
+                      disabled={uploadingResume}
+                      onChange={(e) => e.target.files?.[0] && handleInlineUpload(e.target.files[0])}
+                    />
                   </label>
-                  <select
-                    value={selectedResumeId ?? ''}
-                    onChange={(e) => setSelectedResumeId(e.target.value ? Number(e.target.value) : null)}
-                    className={inputClass}
-                  >
-                    {latexResumes.map((resume) => (
-                      <option key={resume.id} value={resume.id}>
-                        Resume #{resume.id} ({new Date(resume.created_at).toLocaleDateString()})
-                      </option>
-                    ))}
-                  </select>
                 </div>
               )}
             </div>
