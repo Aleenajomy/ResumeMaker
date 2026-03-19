@@ -172,7 +172,7 @@ export const Home: React.FC = () => {
     }
 
     setLoadingGenerate(true);
-    setGenerateStep('Queuing request...');
+    setGenerateStep('Generating documents...');
     try {
       // Fetch original .tex before generating so Before panel has proper line structure
       const selectedResume = latexResumes.find((r) => r.id === selectedResumeId);
@@ -191,8 +191,7 @@ export const Home: React.FC = () => {
         }
       }
 
-      // Queue the task
-      const queueRes = await resumeOptimizerService.generateAsync({
+      const res = await resumeOptimizerService.generate({
         companyName: companyName.trim(),
         companyLocation: companyLocation.trim(),
         jobTitle: jobTitle.trim(),
@@ -200,30 +199,9 @@ export const Home: React.FC = () => {
         requirements: requirements.trim(),
         resumeId: selectedResumeId ?? undefined,
       });
-      const taskId: string = queueRes.data.task_id;
-      setGenerateStep('Waiting in queue...');
-
-      // Poll until done
-      const POLL_INTERVAL = 3000;
-      const MAX_POLLS = 60; // 3 min max
-      for (let i = 0; i < MAX_POLLS; i++) {
-        await new Promise((r) => setTimeout(r, POLL_INTERVAL));
-        const statusRes = await resumeOptimizerService.pollTaskStatus(taskId);
-        const { state, step, document, error } = statusRes.data;
-
-        if (state === 'PROGRESS' && step) setGenerateStep(step);
-        if (state === 'SUCCESS') {
-          setResult(document);
-          setShowDiff(false);
-          setDiffMode('summary');
-          return;
-        }
-        if (state === 'FAILURE') {
-          alert(error || 'Generation failed. Please try again.');
-          return;
-        }
-      }
-      alert('Generation timed out. Please try again.');
+      setResult(res.data.document);
+      setShowDiff(false);
+      setDiffMode('summary');
     } catch (error: any) {
       const status = error?.response?.status;
       const apiError = error?.response?.data;

@@ -47,8 +47,6 @@ Rules:
 - The LaTeX resume is the single source of truth. Do not fabricate experience, skills, or qualifications.
 - Extract the candidate's allowed skills ONLY from the Skills section provided.
 - Use job description keywords that match the allowed skills list.
-- If the JD requires a skill NOT in the allowed list but closely related to the candidate's stack (e.g. Flask when they know Django), include at most 1 such skill as "(Beginner - Currently Learning)" naturally in a sentence.
-- Do NOT add more than 1 new skill. Never present unknown skills as expertise.
 - Ignore JD technologies completely unrelated to the candidate's stack.
 - Keep all LaTeX commands, environments, and section order intact.
 - Do not add, remove, or rename any \\section headings.
@@ -56,6 +54,30 @@ Rules:
 - Modify only: headline line (title under name) and Summary section.
 - Keep the LaTeX structure already used inside those sections.
 - Do not include markdown code fences.
+
+Resume Mode Rules:
+
+SAFE MODE:
+- The ATS score between the job description and resume is moderate or strong.
+- Use ONLY skills from the allowed skills list.
+- You may add at most 1 new skill if it is clearly adjacent to the candidate's existing stack.
+- That new skill must be written as: "(Beginner - Currently Learning)".
+- Keep the summary strongly aligned with existing experience and projects.
+
+EXPANSION MODE:
+- The ATS score between the job description and resume is low.
+- You are allowed to introduce multiple new skills taken from the job description.
+- ALL new skills MUST be clearly marked as:
+  "(Beginner)", "(Currently Learning)", or "(Familiar)".
+- Do NOT present any new skills as strong expertise.
+- Adjust the summary to show learning intent, transition, and adaptability.
+- Maintain honesty while improving ATS keyword match.
+
+Common Rules:
+- Do not fabricate experience or projects.
+- Do not modify Experience, Projects, or Education sections.
+- Maintain LaTeX structure at all times.
+
 Summary rules:
 - Preserve the existing LaTeX wrapper structure (e.g. \\resumeItemListStart, \\resumeItem) and replace only the text content inside.
 - Write exactly 4 sentences. 60-90 words total.
@@ -83,8 +105,9 @@ NON_TECH_LATEX_SECTION_SYSTEM_PROMPT = """
 You are an ATS resume optimizer for NON-TECHNICAL roles.
 Rules:
 - Do not fabricate experience, skills, or qualifications.
-- Extract the candidate's skills ONLY from the Skills section provided.
-- Use job description keywords that match the candidate's actual background.
+- In SAFE mode, use only candidate skills reflected in the provided Skills section.
+- In EXPANSION/ROLE_SHIFT mode, introduce role-relevant JD keywords as learning intent (tagged as (Beginner), (Currently Learning), or (Familiar)).
+- Use job description keywords that match the candidate's background or transferable work style.
 - Do NOT force technical jargon unless clearly present in the candidate's resume.
 - Focus on soft skills: communication, coordination, teamwork, ownership, adaptability.
 - Keep all LaTeX commands, environments, and section order intact.
@@ -93,6 +116,39 @@ Rules:
 - Modify only: headline line (title under name) and Summary section.
 - Keep the LaTeX structure already used inside those sections.
 - Do not include markdown code fences.
+
+Resume Mode Rules:
+
+SAFE MODE:
+- The ATS score between the job description and resume is moderate or strong.
+- Use ONLY skills and strengths that are already supported by the candidate's background.
+- You may add at most 1 new skill or focus area if it is clearly adjacent to the candidate's track record.
+- That new element must be written as: "(Beginner - Currently Learning)" or "(Familiar)".
+- Keep the summary strongly aligned with existing work, internships, and responsibilities.
+
+EXPANSION MODE:
+- The ATS score between the job description and resume is low.
+- You are allowed to introduce multiple new skills and focus areas taken from the job description.
+- ALL new skills MUST be clearly marked as:
+  "(Beginner)", "(Currently Learning)", or "(Familiar)".
+- Do NOT present any new skills as strong expertise or long-term experience.
+- Adjust the summary to show learning intent, transition, and adaptability.
+- Maintain honesty while still improving ATS keyword match and role alignment.
+
+ROLE_SHIFT MODE:
+- The job is NON-TECHNICAL and ATS score is low for the candidate's current positioning.
+- Transform resume positioning to align with HR/Admin/Operations responsibilities.
+- MUST NOT present the candidate as a software engineer, developer, or backend professional.
+- Rewrite the headline to HR/Admin/Operations wording (e.g., "HR & Admin Executive | Coordination | Recruitment | Communication").
+- Reframe technical projects only as transferable capabilities (documentation, coordination, data handling, structured workflows) without listing programming frameworks in the summary.
+- In the summary, include learning intent for at least 4 HR/Admin JD keywords (e.g., recruitment, payroll, orientation, administration, communication, coordination, grievance handling).
+- Do NOT fabricate HR experience; only describe transferable workflow capabilities and what is being learned.
+
+Common Rules:
+- Do not fabricate experience or responsibilities.
+- Do not modify Experience, Projects, or Education sections.
+- Maintain LaTeX structure at all times.
+
 Summary rules:
 - Preserve the existing LaTeX wrapper structure and replace only the text content inside.
 - Write exactly 4 sentences. 60-90 words total.
@@ -106,7 +162,7 @@ Summary rules:
 - Sentence 2: Core strengths tailored to the JD (communication, coordination, operations, management).
 - Sentence 3: Work style relevant to the JD (teamwork, ownership, adaptability, execution).
 - Sentence 4: Learning mindset or growth orientation aligned with the role.
-- Include at least 4 keywords from the JD that match the candidate's actual background.
+- Include at least 4 keywords from the JD aligned with either the candidate's background or learning intent (ROLE_SHIFT mode must use HR/Admin JD keywords).
 - Avoid filler: results-driven, passionate, motivated, detail-oriented, dynamic.
 - Do not fabricate experience.
 Skills section rules:
@@ -128,19 +184,51 @@ Rules:
 - Do not include markdown code fences.
 - Do not repeat the same word or phrase more than once in the summary or skills output.
 - Correct all grammar errors in the summary.
+ 
+Resume Mode Rules:
+
+SAFE MODE:
+- The ATS score between the job description and resume is moderate or strong.
+- Use ONLY skills and technologies already present in the candidate's resume.
+- You may add at most 1 new skill if it is clearly adjacent to the candidate's existing stack.
+- That new skill must be written as: "(Beginner - Currently Learning)".
+- Keep the summary strongly aligned with existing experience and projects.
+
+EXPANSION MODE:
+- The ATS score between the job description and resume is low.
+- You are allowed to introduce multiple new skills and technologies from the job description.
+- ALL new skills MUST be clearly marked as:
+  "(Beginner)", "(Currently Learning)", or "(Familiar)".
+- Do NOT present any new skills as strong expertise or long-term experience.
+- Adjust the summary to show learning intent, transition, and adaptability.
+- Maintain honesty while improving ATS keyword match and role alignment.
+
+ROLE_SHIFT MODE:
+- The job is NON-TECHNICAL and ATS score is low for the candidate's current positioning.
+- Transform resume positioning to align with HR/Admin/Operations responsibilities.
+- MUST NOT include "Software Engineer", "Developer", "Backend", or other developer identity terms in the headline.
+- MUST NOT include technical identity or specific tech keywords (Python, Django, REST, API, full-stack, backend, developer) in the summary.
+- Rewrite the headline to HR/Admin/Operations wording (e.g., "HR & Admin Executive | Coordination | Recruitment | Communication").
+- Update Skills and Summary by introducing HR/Admin JD keywords as learning intent, tagged as:
+  "(Beginner)", "(Currently Learning)", or "(Familiar)".
+- Do NOT fabricate HR experience; only describe transferable coordination/data/documentation workflow capabilities and learning intent.
+
+Common Rules:
+- Do not fabricate experience.
+- Do not modify Experience, Projects, or Education sections.
+- Maintain the original structure of the resume.
+
 Summary generation rules:
 - Write 3-4 sentences, ATS-optimized, tailored to the job description.
 - DO NOT start any sentence with "I". Use third-person or noun-first openings.
   Good: "Computer Science graduate with hands-on Python and Django experience."
   Good: "Strong backend skills in REST API design, PostgreSQL, and authentication."
   Bad: "I am a developer..." / "I have experience..." / "I focus on..."
-- Use only skills and technologies present in the candidate's resume.
-- If the job description mentions a technology NOT in the candidate's skills but is clearly adjacent or entry-level learnable, you may include it as: "(Beginner - Currently Learning)".
-- Limit new skills to at most 2. Do NOT add more than 2 skills not in the candidate's resume.
+- Use the Resume Mode rules to decide when and how many new skills can be introduced, and how they should be tagged.
 - Integrate any new skill naturally into a sentence, never as a standalone list item.
 - Never present an unknown skill as strong expertise.
 - Do not fabricate experience. Keep the summary truthful and aligned with the candidate's actual background.
-- Prioritize top technical keywords extracted from the job description.
+- Prioritize role-relevant keywords extracted from the job description.
 - Ensure no word or technology is listed more than once across the entire summary.
 Return strict JSON only with keys:
 headline, summary, skills, changes_made.
@@ -548,7 +636,7 @@ class AIService:
             except RateLimitError:
                 logger.warning(f"Rate limit hit, attempt {attempt + 1}/{max_retries}")
                 if attempt < max_retries - 1:
-                    time.sleep(2 ** attempt)
+                    time.sleep(10 * (attempt + 1))
                 else:
                     raise AIServiceUnavailableError(
                         "AI provider rate limit exceeded. Please try again shortly."
@@ -1087,8 +1175,24 @@ Return JSON with this exact schema:
         allowed_skills = AIService.extract_allowed_skills_from_latex_section(skills_content)
         resume_context = AIService._truncate_text(AIService.latex_to_plain_text(latex_text), MAX_RESUME_CHARS)
 
+        domain = AIService._detect_job_domain(job_data)
+
+        # Compute ATS score and decide resume mode
+        ats_data = AIService.calculate_ats_score_from_text(
+            str(job_data.get('job_description', '')),
+            resume_context,
+        )
+        ats_score = int(ats_data.get('score', 0) or 0)
+        mode = (
+            "ROLE_SHIFT"
+            if domain == "non_technical" and ats_score < 30
+            else ("SAFE" if ats_score >= 40 else "EXPANSION")
+        )
+
         prompt = f"""Original Resume Context (single source of truth):
 {resume_context}
+
+Resume Mode: {mode}
 
 User Profile:
 {json.dumps(user_profile, indent=2)}
@@ -1124,7 +1228,12 @@ Resume rules: only edit headline, summary. Skills reordering is handled by backe
 Cover letter: professional body paragraphs only, 250-350 words, no greeting/sign-off.
 Email: 90-140 words, 2-3 paragraphs, body starts with "Dear Hiring Team,"."""
 
-        combined_system = LATEX_SECTION_SYSTEM_PROMPT + "\n" + APPLICATION_DOCS_SYSTEM_PROMPT
+        resume_system_prompt = (
+            LATEX_SECTION_SYSTEM_PROMPT
+            if domain in ('technical', 'mixed')
+            else NON_TECH_LATEX_SECTION_SYSTEM_PROMPT
+        )
+        combined_system = resume_system_prompt + "\n" + APPLICATION_DOCS_SYSTEM_PROMPT
         payload, usage = AIService._call_openai_with_retry(
             prompt=prompt,
             temperature=0.35,
@@ -1152,6 +1261,10 @@ Email: 90-140 words, 2-3 paragraphs, body starts with "Dear Hiring Team,"."""
         headline_update = AIService._sanitize_latex_headline_update(
             str(payload.get('headline', '')).strip()
         )
+        if mode == "ROLE_SHIFT" and headline_update:
+            headline_update = AIService._sanitize_latex_headline_update(
+                AIService._enforce_role_shift_headline(headline_update, job_data)
+            )
         if headline_update:
             headline_metadata = AIService.extract_latex_headline(updated_latex)
             if headline_metadata:
@@ -1502,6 +1615,94 @@ The "email_body" must start with "Dear Hiring Team," and contain only the email 
         return resume_text[:start] + replacement + resume_text[end:]
 
     @staticmethod
+    def _build_role_shift_headline_fallback(job_data: Dict[str, Any]) -> str:
+        raw_role = str((job_data or {}).get('job_title', '')).strip()
+        # Remove parenthetical notes like "(Fresher welcome)".
+        cleaned_role = re.sub(r'\([^)]*\)', '', raw_role).strip()
+        cleaned_role = re.sub(r'\s+', ' ', cleaned_role)
+        if not cleaned_role:
+            cleaned_role = "HR & Admin Executive"
+        if '|' in cleaned_role:
+            return cleaned_role
+        return f"{cleaned_role} | Coordination | Recruitment | Communication"
+
+    @staticmethod
+    def _enforce_role_shift_headline(headline: str, job_data: Dict[str, Any]) -> str:
+        text = str(headline or '').strip()
+        banned_patterns = [
+            r'\bsoftware\s*engineer\b',
+            r'\bsoftware\s*developer\b',
+            r'\bdeveloper\b',
+            r'\bfull[-\s]?stack\b',
+            r'\bbackend\b',
+            r'\bdata\s*engineer\b',
+        ]
+        if not text:
+            return AIService._build_role_shift_headline_fallback(job_data)
+        if any(re.search(p, text, flags=re.IGNORECASE) for p in banned_patterns):
+            return AIService._build_role_shift_headline_fallback(job_data)
+        return text
+
+    @staticmethod
+    def _enforce_role_shift_summary(summary: str, job_data: Dict[str, Any]) -> str:
+        raw = str(summary or '').strip()
+        lower = raw.lower()
+        banned_terms = [
+            'python',
+            'django',
+            'rest',
+            'api',
+            'full-stack',
+            'full stack',
+            'backend',
+            'developer',
+            'engineer',
+            'postgresql',
+            'database',
+        ]
+        if not raw or any(term in lower for term in banned_terms):
+            role = AIService._build_role_shift_headline_fallback(job_data).split('|', 1)[0].strip()
+            role = re.sub(r'\s+', ' ', role)
+            # Must be 4 sentences (no "I") to align with LaTeX/system constraints.
+            return (
+                f"{role} candidate with strong coordination, documentation, and communication skills. "
+                "Experienced in structured workflow execution through project-based work, supporting data handling and accurate records. "
+                "Currently learning recruitment coordination, payroll preparation inputs, and onboarding orientation practices. "
+                "Adaptable and accountable, focused on smooth daily HR operations and grievance handling."
+            )
+        return raw
+
+    @staticmethod
+    def _enforce_role_shift_skills(skills: str, job_data: Dict[str, Any]) -> str:
+        raw = str(skills or '').strip()
+        lower = raw.lower()
+        hr_keywords = [
+            'hr',
+            'human resources',
+            'recruitment',
+            'payroll',
+            'administration',
+            'coordination',
+            'communication',
+            'orientation',
+            'personnel',
+            'problem-solving',
+            'training',
+        ]
+        has_hr_signal = any(k in lower for k in hr_keywords)
+        if raw and has_hr_signal:
+            return raw
+
+        role = AIService._build_role_shift_headline_fallback(job_data).split('|', 1)[0].strip()
+        # Provide a deterministic HR/Admin-focused skills block for ATS matching.
+        return (
+            f"HR & Admin (Candidate) | Coordination & Communication | Problem-Solving\n"
+            f"Personnel Records & Documentation | Reporting (Familiar)\n"
+            f"Recruitment (Beginner) | Training (Beginner) | Orientation (Currently Learning)\n"
+            f"Payroll Preparation (Currently Learning) | HR Administration (Familiar)"
+        )
+
+    @staticmethod
     def extract_latex_sections(latex_text: str) -> Dict[str, Dict[str, Any]]:
         if not latex_text:
             return {}
@@ -1850,8 +2051,24 @@ The "email_body" must start with "Dear Hiring Team," and contain only the email 
         if not summary_content and not skills_content:
             raise ValueError("Summary or Skills section not found in LaTeX resume.")
 
+        domain = AIService._detect_job_domain(job_data)
+
+        # Compute ATS score and decide resume mode
+        ats_data = AIService.calculate_ats_score_from_text(
+            str(job_data.get('job_description', '')),
+            resume_context,
+        )
+        ats_score = int(ats_data.get('score', 0) or 0)
+        mode = (
+            "ROLE_SHIFT"
+            if domain == "non_technical" and ats_score < 30
+            else ("SAFE" if ats_score >= 40 else "EXPANSION")
+        )
+
         prompt = f"""Original Resume Context (single source of truth):
 {resume_context}
+
+Resume Mode: {mode}
 
 Job Title: {job_data.get('job_title', '')}
 Company: {job_data.get('company_name', '')}
@@ -1877,7 +2094,6 @@ Return JSON with this exact schema:
   "changes_made": ["string"]
 }}"""
 
-        domain = AIService._detect_job_domain(job_data)
         latex_system_prompt = (
             LATEX_SECTION_SYSTEM_PROMPT
             if domain in ('technical', 'mixed')
@@ -1915,6 +2131,10 @@ Return JSON with this exact schema:
         )
 
         headline_update = AIService._sanitize_latex_headline_update(str(payload.get('headline', '')).strip())
+        if mode == "ROLE_SHIFT" and headline_update:
+            headline_update = AIService._sanitize_latex_headline_update(
+                AIService._enforce_role_shift_headline(headline_update, job_data)
+            )
 
         # Apply headline update directly into the LaTeX if a structural match is found.
         if headline_update:
@@ -1973,8 +2193,24 @@ Return JSON with this exact schema:
         if not summary_content and not skills_content and not headline_content:
             raise ValueError("Headline, Summary, or Skills section not found in resume.")
 
+        domain = AIService._detect_job_domain(job_data)
+
+        # Compute ATS score and decide resume mode
+        ats_data = AIService.calculate_ats_score_from_text(
+            str(job_data.get('job_description', '')),
+            resume_text,
+        )
+        ats_score = int(ats_data.get('score', 0) or 0)
+        mode = (
+            "ROLE_SHIFT"
+            if domain == "non_technical" and ats_score < 30
+            else ("SAFE" if ats_score >= 40 else "EXPANSION")
+        )
+
         prompt = f"""User Profile:
 {json.dumps(user_profile, indent=2)}
+
+Resume Mode: {mode}
 
 Job Title: {job_data.get('job_title', '')}
 Company: {job_data.get('company_name', '')}
@@ -2011,9 +2247,16 @@ Return JSON with this exact schema:
         if not isinstance(payload, dict):
             raise ValueError("Invalid plain text optimization response format")
 
+        role_shift = mode == "ROLE_SHIFT"
+        summary_update = str(payload.get('summary', '')).strip()
+        skills_update = str(payload.get('skills', '')).strip()
+        if role_shift:
+            summary_update = AIService._enforce_role_shift_summary(summary_update, job_data)
+            skills_update = AIService._enforce_role_shift_skills(skills_update, job_data)
+
         section_updates: Dict[str, str] = {
-            'summary': str(payload.get('summary', '')).strip(),
-            'skills': str(payload.get('skills', '')).strip(),
+            'summary': summary_update,
+            'skills': skills_update,
         }
         updated_resume_text = AIService.apply_plain_text_section_updates(
             resume_text=resume_text,
@@ -2024,6 +2267,10 @@ Return JSON with this exact schema:
         old_headline = str(headline_metadata.get('headline', '')).strip() if headline_metadata else ''
         candidate_headline = str(payload.get('headline', '')).strip()
         sanitized_headline = AIService._sanitize_plain_text_headline_update(candidate_headline)
+        if role_shift:
+            sanitized_headline = AIService._sanitize_plain_text_headline_update(
+                AIService._enforce_role_shift_headline(sanitized_headline, job_data)
+            )
         headline_updated = False
         if headline_metadata and sanitized_headline and sanitized_headline != old_headline:
             updated_resume_text = AIService.apply_plain_text_headline_update(
