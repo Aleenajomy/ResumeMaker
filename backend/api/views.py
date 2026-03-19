@@ -17,6 +17,8 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import UserRateThrottle
+from celery.result import AsyncResult
 
 from .ai_service import AIService, AIServiceProviderError, AIServiceUnavailableError
 from .models import (
@@ -29,6 +31,7 @@ from .models import (
 )
 from .pdf_service import PDFService
 from .latex_compiler import detect_latex_compiler, COMPILER_PRIORITY, COMPILER_PATH_HINTS
+from .tasks import generate_documents_task
 from .serializers import (
     CoverLetterListSerializer,
     CoverLetterSerializer,
@@ -441,6 +444,10 @@ class GeneratedDocumentViewSet(viewsets.ReadOnlyModelViewSet):
         return GeneratedDocumentSerializer
 
 
+class OptimizerThrottle(UserRateThrottle):
+    scope = 'optimizer'
+
+
 class ResumeOptimizerViewSet(viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = ResumeOptimizerRequestSerializer
@@ -712,7 +719,7 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
         )
         return cover_letter_pdf, cover_letter_docx
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], throttle_classes=[OptimizerThrottle])
     def generate(self, request):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
@@ -771,7 +778,7 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
             user_profile = self._build_user_profile_payload(request.user)
 
             if source_resume_data['is_latex']:
-                latex_payload = AIService.optimize_latex_resume(
+                latex_payload = AIService.generate_latex_all_documents(
                     latex_text=source_resume_data['latex_text'],
                     job_data=job_data,
                     user_profile=user_profile,
@@ -788,20 +795,16 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
                     )
                     if rendered_template.strip():
                         updated_latex = rendered_template
-                        ai_changes.append(
-                            "Rendered LaTeX template placeholders for summary and skills."
-                        )
+                        ai_changes.append("Rendered LaTeX template placeholders for summary and skills.")
                     else:
-                        ai_changes.append(
-                            "Template placeholder rendering produced empty output; used section-based updates."
-                        )
+                        ai_changes.append("Template placeholder rendering produced empty output; used section-based updates.")
 
                 updated_plain_resume = AIService.latex_to_plain_text(updated_latex)
-                application_payload = AIService.generate_application_documents(
-                    user_profile=user_profile,
-                    tailored_resume_text=updated_plain_resume,
-                    job_data=job_data,
-                )
+                application_payload = {
+                    'cover_letter_text': latex_payload['cover_letter_text'],
+                    'email_subject': latex_payload['email_subject'],
+                    'email_body': latex_payload['email_body'],
+                }
                 ats_data = AIService.calculate_ats_score_from_text(
                     job_description=job_description,
                     tailored_resume_text=updated_plain_resume,
@@ -811,8 +814,7 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
                     updated_text=updated_latex,
                 )
                 token_usage = {
-                    'latex_optimization': latex_payload.get('token_usage'),
-                    'application_documents': application_payload.get('token_usage'),
+                    'combined': latex_payload.get('token_usage'),
                 }
 
                 tailored_resume_tex = self._text_to_data_url(updated_latex, mime_type='application/x-tex')
@@ -957,4 +959,57 @@ class ResumeOptimizerViewSet(viewsets.GenericViewSet):
             )
 
         return Response({'document': document_payload}, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='generate-async', throttle_classes=[OptimizerThrottle])
+    def generate_async(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            message = self._flatten_validation_errors(serializer.errors) or 'Invalid request payload.'
+            return self._error_response(message=message, status_code=status.HTTP_400_BAD_REQUEST)
+
+        validated_data = serializer.validated_data
+        try:
+            resume, _ = self._resolve_resume(
+                user=request.user, request=request, validated_data=validated_data
+            )
+        except Resume.DoesNotExist:
+            return self._error_response('Selected resume was not found.', status.HTTP_404_NOT_FOUND)
+        except ValueError as exc:
+            return self._error_response(str(exc), status.HTTP_400_BAD_REQUEST)
+
+        job_data = {
+            'company_name': str(validated_data.get('company_name', '')).strip(),
+            'company_location': str(validated_data.get('company_location', '')).strip(),
+            'job_title': str(validated_data.get('job_title', '')).strip(),
+            'job_description': str(validated_data.get('job_description', '')).strip(),
+            'requirements': str(validated_data.get('requirements', '')).strip(),
+        }
+        user_profile = self._build_user_profile_payload(request.user)
+
+        task = generate_documents_task.delay(
+            user_id=request.user.id,
+            resume_id=resume.id,
+            job_data=job_data,
+            user_profile=user_profile,
+        )
+        return Response({'task_id': task.id}, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=False, methods=['get'], url_path='task-status/(?P<task_id>[^/.]+)')
+    def task_status(self, request, task_id=None):
+        result = AsyncResult(task_id)
+        state = result.state
+
+        if state == 'PENDING':
+            return Response({'state': 'PENDING', 'step': 'Waiting in queue...'})
+        if state == 'PROGRESS':
+            return Response({'state': 'PROGRESS', 'step': result.info.get('step', '')})
+        if state == 'SUCCESS':
+            data = result.result or {}
+            if data.get('status') == 'error':
+                return Response({'state': 'FAILURE', 'error': data.get('error', 'Unknown error')}, status=status.HTTP_200_OK)
+            return Response({'state': 'SUCCESS', 'document': data.get('document')})
+        if state == 'FAILURE':
+            return Response({'state': 'FAILURE', 'error': str(result.info)}, status=status.HTTP_200_OK)
+
+        return Response({'state': state})
 

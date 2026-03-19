@@ -218,7 +218,7 @@ OPENAI_API_KEY = GROQ_API_KEY or get_env('OPENAI_API_KEY')
 OPENAI_BASE_URL = get_env('OPENAI_BASE_URL')
 if not OPENAI_BASE_URL and GROQ_API_KEY:
     OPENAI_BASE_URL = 'https://api.groq.com/openai/v1'
-AI_MODEL = get_env('AI_MODEL', 'llama-3.3-70b-versatile' if GROQ_API_KEY else 'gpt-4o-mini')
+AI_MODEL = get_env('AI_MODEL', 'gemini-2.0-flash')
 
 CELERY_BROKER_URL = get_env('REDIS_URL', 'redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = get_env('REDIS_URL', 'redis://localhost:6379/0')
@@ -283,13 +283,12 @@ LOGGING = {
 }
 
 # Rate Limiting
-# REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = [
-#     'rest_framework.throttling.AnonRateThrottle',
-#     'rest_framework.throttling.UserRateThrottle',
-# ]
-# REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
-#     'anon': '10/hour',
-#     'user': '100/hour',
-# }
+REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = [
+    'rest_framework.throttling.UserRateThrottle',
+]
+REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
+    'user': '200/hour',
+    'optimizer': '10/minute',
+}
 REST_FRAMEWORK['DEFAULT_PAGINATION_CLASS'] = 'rest_framework.pagination.PageNumberPagination'
 REST_FRAMEWORK['PAGE_SIZE'] = 10
