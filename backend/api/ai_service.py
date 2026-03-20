@@ -488,7 +488,8 @@ class AIService:
                     messages=messages,
                     temperature=temperature,
                     response_format={"type": "json_object"},
-                    timeout=30,
+                    max_tokens=4096,
+                    timeout=60,
                 )
                 content = response.choices[0].message.content
                 payload = AIService._extract_json_payload(content)
@@ -1027,16 +1028,16 @@ Return JSON with this exact schema:
             raise ValueError("Unable to detect editable LaTeX sections.")
 
         summary_content = AIService._truncate_text(
-            section_map.get('summary', {}).get('content', ''), MAX_LATEX_SECTION_CHARS
+            section_map.get('summary', {}).get('content', ''), 2000
         )
         skills_content = AIService._truncate_text(
-            section_map.get('skills', {}).get('content', ''), MAX_LATEX_SECTION_CHARS
+            section_map.get('skills', {}).get('content', ''), 2000
         )
         if not summary_content and not skills_content:
             raise ValueError("Summary or Skills section not found in LaTeX resume.")
 
         allowed_skills = AIService.extract_allowed_skills_from_latex_section(skills_content)
-        resume_context = AIService._truncate_text(AIService.latex_to_plain_text(latex_text), MAX_RESUME_CHARS)
+        resume_context = AIService._truncate_text(AIService.latex_to_plain_text(latex_text), 4000)
 
         prompt = f"""Original Resume Context (single source of truth):
 {resume_context}
@@ -1047,10 +1048,10 @@ User Profile:
 Job Title: {job_data.get('job_title', '')}
 Company: {job_data.get('company_name', '')}
 Job Description:
-{AIService._truncate_text(str(job_data.get('job_description', '')), MAX_JOB_DESCRIPTION_CHARS)}
+{AIService._truncate_text(str(job_data.get('job_description', '')), 3000)}
 
 Requirements:
-{AIService._truncate_text(str(job_data.get('requirements', '')), MAX_REQUIREMENTS_CHARS)}
+{AIService._truncate_text(str(job_data.get('requirements', '')), 1000)}
 
 Allowed Skills List:
 {json.dumps(allowed_skills, indent=2)}
