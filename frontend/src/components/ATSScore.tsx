@@ -11,33 +11,42 @@ interface ATSScoreProps {
 function highlightKeywordsInText(text: string, matched: string[], missing: string[]): React.ReactNode[] {
   if (!text) return [];
 
-  // Build a map of normalized keyword -> type for fast lookup
-  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const matchedSet = new Map(matched.map((k) => [normalize(k), k]));
-  const missingSet = new Map(missing.map((k) => [normalize(k), k]));
+  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
-  // Split text into words preserving whitespace/punctuation
-  const tokens = text.split(/(\s+)/);
-  return tokens.map((token, i) => {
-    const norm = normalize(token);
-    if (!norm) return <span key={i}>{token}</span>;
-    if (matchedSet.has(norm)) {
+  // Sort longest phrases first so multi-word matches take priority
+  const allKeywords = [
+    ...matched.map((k) => ({ kw: k, type: 'matched' as const })),
+    ...missing.map((k) => ({ kw: k, type: 'missing' as const })),
+  ].sort((a, b) => b.kw.length - a.kw.length);
+
+  // Build regex that matches any keyword phrase (case-insensitive, flexible punctuation)
+  const escaped = allKeywords.map(({ kw }) =>
+    normalize(kw).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '[\\s\\-]+')
+  );
+  if (!escaped.length) return [<span key={0}>{text}</span>];
+
+  const pattern = new RegExp(`(${escaped.join('|')})`, 'gi');
+  const parts = text.split(pattern);
+
+  return parts.map((part, i) => {
+    const normPart = normalize(part);
+    const hit = allKeywords.find(({ kw }) => normalize(kw) === normPart ||
+      normalize(kw).replace(/[\s\-]+/g, '') === normPart.replace(/\s+/g, ''));
+    if (!hit) return <span key={i}>{part}</span>;
+    if (hit.type === 'matched') {
       return (
-        <mark key={i} title={`Matched: ${matchedSet.get(norm)}`}
+        <mark key={i} title={`Matched: ${hit.kw}`}
           className="bg-emerald-200 text-emerald-900 rounded-sm px-0.5 font-medium">
-          {token}
+          {part}
         </mark>
       );
     }
-    if (missingSet.has(norm)) {
-      return (
-        <mark key={i} title={`Missing: ${missingSet.get(norm)}`}
-          className="bg-rose-200 text-rose-900 rounded-sm px-0.5 font-medium">
-          {token}
-        </mark>
-      );
-    }
-    return <span key={i}>{token}</span>;
+    return (
+      <mark key={i} title={`Missing: ${hit.kw}`}
+        className="bg-rose-200 text-rose-900 rounded-sm px-0.5 font-medium">
+        {part}
+      </mark>
+    );
   });
 }
 
