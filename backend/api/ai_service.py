@@ -636,7 +636,9 @@ class AIService:
             except RateLimitError:
                 logger.warning(f"Rate limit hit, attempt {attempt + 1}/{max_retries}")
                 if attempt < max_retries - 1:
-                    time.sleep(10 * (attempt + 1))
+                    wait = 20 * (attempt + 1) + (attempt * 5)
+                    logger.info(f"Waiting {wait}s before retry...")
+                    time.sleep(wait)
                 else:
                     raise AIServiceUnavailableError(
                         "AI provider rate limit exceeded. Please try again shortly."
@@ -1177,10 +1179,11 @@ Return JSON with this exact schema:
 
         domain = AIService._detect_job_domain(job_data)
 
-        # Compute ATS score and decide resume mode
+        # Compute ATS score and decide resume mode (no extra AI call here)
         ats_data = AIService.calculate_ats_score_from_text(
             str(job_data.get('job_description', '')),
             resume_context,
+            use_ai=False,
         )
         ats_score = int(ats_data.get('score', 0) or 0)
         mode = (
@@ -2053,10 +2056,11 @@ The "email_body" must start with "Dear Hiring Team," and contain only the email 
 
         domain = AIService._detect_job_domain(job_data)
 
-        # Compute ATS score and decide resume mode
+        # Compute ATS score and decide resume mode (no extra AI call here)
         ats_data = AIService.calculate_ats_score_from_text(
             str(job_data.get('job_description', '')),
             resume_context,
+            use_ai=False,
         )
         ats_score = int(ats_data.get('score', 0) or 0)
         mode = (
@@ -2195,10 +2199,11 @@ Return JSON with this exact schema:
 
         domain = AIService._detect_job_domain(job_data)
 
-        # Compute ATS score and decide resume mode
+        # Compute ATS score and decide resume mode (no extra AI call here)
         ats_data = AIService.calculate_ats_score_from_text(
             str(job_data.get('job_description', '')),
             resume_text,
+            use_ai=False,
         )
         ats_score = int(ats_data.get('score', 0) or 0)
         mode = (
@@ -2317,12 +2322,14 @@ Return JSON with this exact schema:
         return AIService._dedupe_preserve_order(normalized_hyphenated + bigrams)
 
     @staticmethod
-    def calculate_ats_score_from_text(job_description: str, tailored_resume_text: str) -> Dict[str, Any]:
+    def calculate_ats_score_from_text(job_description: str, tailored_resume_text: str, use_ai: bool = True) -> Dict[str, Any]:
         if not job_description:
             return {'score': 0, 'matched': [], 'missing': []}
 
         # Use AI to extract meaningful ATS keywords from the JD
         try:
+            if not use_ai:
+                raise ValueError('skip')
             prompt = f"""Extract the most important ATS keywords from this job description.
 Focus ONLY on:
 - Technical skills, tools, frameworks, languages (e.g. Python, Django, REST API, PostgreSQL)

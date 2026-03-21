@@ -178,14 +178,8 @@ export const Home: React.FC = () => {
       const selectedResume = latexResumes.find((r) => r.id === selectedResumeId);
       if (selectedResume?.latex_file) {
         try {
-          const token = getAccessToken();
-          const latexUrl = selectedResume.latex_file.startsWith('http')
-            ? selectedResume.latex_file
-            : `${backendUrl}${selectedResume.latex_file}`;
-          const latexRes = await fetch(latexUrl, {
-            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          });
-          setOriginalLatex(await latexRes.text());
+          const res = await resumeService.viewFile(selectedResume.id);
+          setOriginalLatex(res.data);
         } catch {
           setOriginalLatex('');
         }
