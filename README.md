@@ -1,18 +1,30 @@
 # 📄 ResumeMaker
 
+<div align="center">
+  <img src="https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54" alt="Python" />
+  <img src="https://img.shields.io/badge/django-%23092E20.svg?style=for-the-badge&logo=django&logoColor=white" alt="Django" />
+  <img src="https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB" alt="React" />
+  <img src="https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/postgres-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind CSS" />
+  <img src="https://img.shields.io/badge/vite-%23646CFF.svg?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" />
+</div>
+
+<br />
+
 ResumeMaker is a full-stack, AI-powered **ATS Resume Optimizer & Application Assistant**. It compiles LaTeX and plain-text resumes tailored to specific job descriptions, generates structured cover letters (PDF/DOCX), drafts custom application emails, and calculates an ATS alignment score using token-level diff visualization.
 
 ---
 
 ## ✨ Features
 
-*   **LaTeX-First Exact Structure Mode:** Tailors your resume's **Summary**, **Headline**, and **Skills** sections while preserving the formatting and content of your **Experience**, **Projects**, and **Education** sections.
-*   **Template Injection:** Supports dynamic rendering of LaTeX placeholders (`{{HEADLINE}}`, `{{SUMMARY}}`, `{{SKILLS}}`) on base templates.
-*   **Automated Document Generation:**
+*   **🔒 LaTeX-First Exact Structure Mode:** Tailors your resume's **Summary**, **Headline**, and **Skills** sections while preserving the formatting and content of your **Experience**, **Projects**, and **Education** sections.
+*   **🔌 Template Injection:** Supports dynamic rendering of LaTeX placeholders (`{{HEADLINE}}`, `{{SUMMARY}}`, `{{SKILLS}}`) on base templates.
+*   **🤖 Automated Document Generation:**
     *   **Tailored Resume:** Optimized LaTeX source code and compiled PDF.
     *   **Cover Letter:** Fixed-structure professional cover letter exported as PDF and editable Word DOCX.
     *   **Application Email:** Context-specific email subject and body (tailored for technical and non-technical roles).
-*   **ATS Alignment Analytics:** Extracted keywords, matching percentages, missing terminology, and token-level diff highlighting.
+*   **📊 ATS Alignment Analytics:** Extracted keywords, matching percentages, missing terminology, and token-level diff highlighting.
 
 ---
 
@@ -86,14 +98,16 @@ graph TD
 
 The frontend application exposes the following user-facing routes and views:
 
-*   `/` — **Landing Page**: Public homepage introducing features.
-*   `/login` — **Authentication**: User registration and login forms.
-*   `/forgot-password` — **Forgot Password**: Password reset email validation.
-*   `/reset-password` — **Reset Password**: Form to enter new password.
-*   `/dashboard` — **Dashboard**: Upload LaTeX base resumes and manage active items.
-*   `/resume-optimizer` — **Resume Optimizer**: Form to insert target job details and run the optimization engine.
-*   `/profile-view` — **Profile Manager**: Edit full name, contact details, links, summary, and skills list.
-*   `/certifications` — **Certifications CRUD**: Manage licenses, issuers, dates, and media.
+| Route | View Name | Description |
+| :--- | :--- | :--- |
+| `/` | **Landing Page** | Public homepage introducing features. |
+| `/login` | **Authentication** | User registration and login forms. |
+| `/forgot-password` | **Forgot Password** | Password reset email validation. |
+| `/reset-password` | **Reset Password** | Form to enter new password. |
+| `/dashboard` | **Dashboard** | Upload LaTeX base resumes and manage active items. |
+| `/resume-optimizer` | **Resume Optimizer** | Form to insert target job details and run the optimization engine. |
+| `/profile-view` | **Profile Manager** | Edit full name, contact details, links, summary, and skills list. |
+| `/certifications` | **Certifications CRUD** | Manage licenses, issuers, dates, and media. |
 
 ---
 
@@ -215,5 +229,3 @@ Frontend runs locally at: `http://localhost:5173`
 *   `POST /api/resume-optimizer/generate/` — Generate customized resume, cover letter, and application email payload.
 *   `GET /api/jobs/` — View generation job history.
 *   `GET /api/generated-documents/` — Retrieve previously generated document configurations.
-
-
