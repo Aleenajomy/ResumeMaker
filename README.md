@@ -27,6 +27,76 @@ ResumeMaker is a full-stack, AI-powered **ATS Resume Optimizer & Application Ass
 
 ---
 
+## 📐 System Architecture
+
+The following diagram illustrates the relationship between the React frontend client, the Django REST backend, the AI generation service, and the supporting compilers and database:
+
+```mermaid
+graph TD
+    subgraph Frontend [React + TS Client]
+        A[Dashboard / Upload]
+        B[Resume Optimizer Form]
+    end
+
+    subgraph Backend [Django REST API]
+        C[Authentication / JWT]
+        D[AI Service / GPT-Gemini]
+        E[PDF & DOCX Services]
+        F[LaTeX Compiler Engine]
+        G[PostgreSQL Database]
+    end
+
+    A -->|Auth & Certifications CRUD| C
+    B -->|POST /generate/| D
+    D -->|Extract & Optimize| E
+    E -->|Compile LaTeX| F
+    C -->|Save Data| G
+```
+
+---
+
+## 📂 Project Structure
+
+```text
+.
+├── backend/                   # Django REST Framework backend
+│   ├── accounts/              # Custom User model & auth logic
+│   ├── api/                   # Resume parsing, optimization pipeline, & views
+│   ├── certifications/        # Certification CRUD endpoints
+│   ├── config/                # Django project settings and URLs
+│   ├── profiles/              # Candidate profile information
+│   ├── templates/             # LaTeX resume template assets
+│   ├── manage.py
+│   └── requirements.txt
+├── frontend/                  # React + TypeScript + Vite frontend
+│   ├── src/
+│   │   ├── components/        # Reusable UI components (Sidebar, AppHeader, FileUpload, etc.)
+│   │   ├── pages/             # Page views (Dashboard, Resume Optimizer, Profile, Certifications, etc.)
+│   │   ├── services/          # API services (Axios client config)
+│   │   └── App.tsx            # App routing
+│   ├── index.html
+│   ├── package.json
+│   └── tailwind.config.js
+└── pyrefly.toml               # Pyrefly linter configuration
+```
+
+---
+
+## 🖥️ Project Views (Frontend Pages)
+
+The frontend application exposes the following user-facing routes and views:
+
+*   `/` — **Landing Page**: Public homepage introducing features.
+*   `/login` — **Authentication**: User registration and login forms.
+*   `/forgot-password` — **Forgot Password**: Password reset email validation.
+*   `/reset-password` — **Reset Password**: Form to enter new password.
+*   `/dashboard` — **Dashboard**: Upload LaTeX base resumes and manage active items.
+*   `/resume-optimizer` — **Resume Optimizer**: Form to insert target job details and run the optimization engine.
+*   `/profile-view` — **Profile Manager**: Edit full name, contact details, links, summary, and skills list.
+*   `/certifications` — **Certifications CRUD**: Manage licenses, issuers, dates, and media.
+
+---
+
 ## 🚀 Quick Start & Local Setup
 
 ### Prerequisites
@@ -146,25 +216,4 @@ Frontend runs locally at: `http://localhost:5173`
 *   `GET /api/jobs/` — View generation job history.
 *   `GET /api/generated-documents/` — Retrieve previously generated document configurations.
 
----
 
-## 🔍 Troubleshooting
-
-#### ⚠️ "No dashboard .tex resume found"
-Upload your resume in LaTeX (`.tex`) format in the dashboard first. The main optimization flow operates directly on LaTeX structure.
-
-#### ⚠️ "Job description must be at least 50 characters"
-Ensure the provided job description contains enough textual data for keyword matching and role parsing.
-
-#### ⚠️ "No LaTeX compiler found"
-*   Install a local compiler (`tectonic`, `xelatex`, or `pdflatex`).
-*   On Railway/Render deployments, verify that the package list contains `texlive-xetex` and `texlive-latex-extra`.
-*   Set the `LATEX_COMPILER=xelatex` environment variable.
-
-#### ⚠️ "HTTP 500 (Internal Server Error) after deploying to Render"
-*   **Environment Variables:** Verify that all environment variables from `backend/.env` (such as `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, and `SECRET_KEY`) are set in the Render Web Service **Environment** tab.
-*   **Database Host:** Ensure `DB_HOST` is set to the **Internal Hostname** inside Render (`dpg-*`) and the **External Hostname** (`dpg-*.oregon-postgres.render.com`) for local connections.
-*   **Database Migrations:** Ensure migrations are applied to the active database using:
-    ```bash
-    venv\Scripts\python.exe manage.py migrate
-    ```
