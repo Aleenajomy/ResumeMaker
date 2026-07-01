@@ -16,7 +16,8 @@ build/
 db.sqlite3
 media/
 staticfiles/
-.env
+backend/.env
+backend/.env.local
 
 # Node
 node_modules/
