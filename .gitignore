@@ -14,9 +14,8 @@ build/
 # Django
 *.log
 db.sqlite3
-backend/media/
-backend/staticfiles/
-backend/logs/*.log
+media/
+staticfiles/
 .env
 
 # Node
