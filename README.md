@@ -100,13 +100,29 @@ System tools:
 ```bash
 cd backend
 python -m venv venv
+
+# Activate the virtual environment
+# On Windows (PowerShell):
+venv\Scripts\Activate.ps1
+# On Windows (CMD):
 venv\Scripts\activate
+# On macOS/Linux:
+source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
-copy .env.example .env
+
+# Configure settings
+copy .env.example .env  # On Windows, or 'cp .env.example .env' on macOS/Linux
+
+# Run database setup & server
 python manage.py migrate
 python manage.py createsuperuser
 python manage.py runserver
 ```
+
+> [!TIP]
+> If you run commands without activating the virtual environment in your terminal, always prefix them with the explicit virtual environment path (e.g. `venv\Scripts\python.exe manage.py <command>` on Windows or `venv/bin/python manage.py <command>` on macOS/Linux).
 
 Backend runs at:
 - `http://localhost:8000`
@@ -130,10 +146,9 @@ Use `backend/.env.example` and set at minimum:
 - `DEBUG`
 - `ALLOWED_HOSTS`
 - `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`
-- `OPENAI_API_KEY` **or** `GROQ_API_KEY`
-- `OPENAI_BASE_URL` (required for Groq-compatible endpoint usage)
+- `OPENAI_API_KEY`
+- `OPENAI_BASE_URL`
 - `AI_MODEL`
-- `REDIS_URL` (if using Celery)
 - `CORS_ALLOWED_ORIGINS`
 - `LATEX_STRICT_MODE` (optional; set `True` to disable fallback text PDF when LaTeX compile fails)
 
@@ -159,8 +174,6 @@ Resume + Optimization:
 Supporting routes:
 - `/api/certifications/`
 - `/api/job-descriptions/`
-- `/api/optimized-resumes/`
-- `/api/cover-letters/`
 - `/api/jobs/`
 - `/api/generated-documents/`
 
@@ -177,7 +190,7 @@ Supporting routes:
 
 - `No LaTeX compiler found`
   - Install `tectonic`, `xelatex`, `lualatex`, or `pdflatex`.
-  - On Railway, set `LATEX_COMPILER=xelatex`.
+  - On Railway/Render, set `LATEX_COMPILER=xelatex`.
   - If `LATEX_COMPILER_PATH` is set, make sure it is a valid path inside the Linux container (do not use Windows paths like `C:\...`).
   - If compile fails, backend falls back to text-based PDF where supported.
 
@@ -188,3 +201,8 @@ Supporting routes:
     - `LATEX_COMPILER_PATH=` (empty, unless you provide a valid Linux path)
     - `LATEX_STRICT_MODE=True` (optional; fail fast instead of fallback PDF)
   - Redeploy and check logs for `Using LaTeX compiler: ...`.
+
+- `HTTP 500 (Internal Server Error) after deploying to Render`
+  - **Environment Variables**: Make sure all environment variables from `backend/.env` (such as `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, and `SECRET_KEY`) are set in the Render Web Service **Environment** tab.
+  - **Database Host**: Make sure `DB_HOST` on the Render web service uses the **Internal Hostname** (e.g., `dpg-d92j3dfaqgkc...`). For local development, make sure `DB_HOST` uses the **External Hostname** (e.g., `dpg-d92j3dfaqgkc...oregon-postgres.render.com`).
+  - **Unapplied Migrations**: If tables are missing, run `venv\Scripts\python.exe manage.py migrate` locally against the Render database before starting the application.
