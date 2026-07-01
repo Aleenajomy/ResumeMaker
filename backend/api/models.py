@@ -53,46 +53,6 @@ class JobDescription(models.Model):
     def __str__(self):
         return f"{self.title} - {self.user.username}"
 
-class OptimizedResume(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='optimized_resumes')
-    original_resume = models.ForeignKey(Resume, on_delete=models.CASCADE)
-    job_description = models.ForeignKey(JobDescription, on_delete=models.CASCADE)
-    optimized_content = models.JSONField(null=True, blank=True)
-    ats_score = models.FloatField()
-    matched_keywords = models.JSONField(default=list)
-    missing_keywords = models.JSONField(default=list)
-    pdf_file = models.FileField(upload_to='resumes/optimized/', null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
-
-    class Meta:
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['-created_at']),
-            models.Index(fields=['user', '-created_at']),
-            models.Index(fields=['ats_score']),
-        ]
-
-    def __str__(self):
-        return f"Optimized Resume {self.id} - Score: {self.ats_score}%"
-
-class CoverLetter(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='cover_letters')
-    optimized_resume = models.ForeignKey(OptimizedResume, on_delete=models.CASCADE)
-    content = models.TextField()
-    pdf_file = models.FileField(upload_to='cover_letters/', null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
-
-    class Meta:
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['-created_at']),
-            models.Index(fields=['user', '-created_at']),
-        ]
-
-    def __str__(self):
-        return f"Cover Letter {self.id} - {self.user.username}"
-
-
 class Job(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='jobs')
     source_resume = models.ForeignKey(

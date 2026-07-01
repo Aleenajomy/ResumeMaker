@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from datetime import timedelta
+# pyrefly: ignore [missing-import]
 from dotenv import load_dotenv
 
 load_dotenv(interpolate=False)
@@ -79,7 +80,7 @@ SECRET_KEY = get_env('SECRET_KEY')
 if not SECRET_KEY:
     raise ValueError('SECRET_KEY environment variable is required')
 DEBUG = get_bool_env('DEBUG', False)
-DEFAULT_ALLOWED_HOSTS = ['.up.railway.app', 'localhost', '127.0.0.1']
+DEFAULT_ALLOWED_HOSTS = ['.up.railway.app', '.onrender.com', 'localhost', '127.0.0.1']
 configured_allowed_hosts = get_list_env('ALLOWED_HOSTS', '')
 if '*' in configured_allowed_hosts:
     ALLOWED_HOSTS = ['*']

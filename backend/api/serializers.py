@@ -5,8 +5,6 @@ from accounts.models import User
 from .models import (
     Resume,
     JobDescription,
-    OptimizedResume,
-    CoverLetter,
     Job,
     GeneratedDocument,
 )
@@ -115,30 +113,6 @@ class JobDescriptionListSerializer(serializers.ModelSerializer):
     class Meta:
         model = JobDescription
         fields = ['id', 'title', 'created_at']
-
-class OptimizedResumeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = OptimizedResume
-        fields = ['id', 'original_resume', 'job_description', 'optimized_content', 
-                  'ats_score', 'matched_keywords', 'missing_keywords', 'pdf_file', 'created_at']
-        read_only_fields = ['optimized_content', 'ats_score', 'matched_keywords', 
-                            'missing_keywords', 'pdf_file', 'created_at']
-
-class OptimizedResumeListSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = OptimizedResume
-        fields = ['id', 'ats_score', 'created_at']
-
-class CoverLetterSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CoverLetter
-        fields = ['id', 'optimized_resume', 'content', 'pdf_file', 'created_at']
-        read_only_fields = ['content', 'pdf_file', 'created_at']
-
-class CoverLetterListSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CoverLetter
-        fields = ['id', 'created_at']
 
 
 class JobSerializer(serializers.ModelSerializer):

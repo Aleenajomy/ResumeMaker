@@ -268,6 +268,7 @@ LATEX_SECTION_ALIASES = {
     'projects': ['projects', 'project', 'project experience', 'personal projects'],
     'skills': ['skills', 'technical skills', 'core skills', 'tech stack'],
     'certifications': ['certifications', 'certification', 'licenses', 'licenses and certifications'],
+    'education': ['education', 'academic background', 'academics'],
 }
 
 LATEX_TEMPLATE_PLACEHOLDERS = {

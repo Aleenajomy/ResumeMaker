@@ -22,19 +22,15 @@ from celery.result import AsyncResult
 
 from .ai_service import AIService, AIServiceProviderError, AIServiceUnavailableError
 from .models import (
-    CoverLetter,
     GeneratedDocument,
     Job,
     JobDescription,
-    OptimizedResume,
     Resume,
 )
 from .pdf_service import PDFService
 from .latex_compiler import detect_latex_compiler, COMPILER_PRIORITY, COMPILER_PATH_HINTS
 from .tasks import generate_documents_task
 from .serializers import (
-    CoverLetterListSerializer,
-    CoverLetterSerializer,
     ForgotPasswordSerializer,
     GeneratedDocumentListSerializer,
     GeneratedDocumentSerializer,
@@ -42,8 +38,6 @@ from .serializers import (
     JobDescriptionSerializer,
     JobListSerializer,
     JobSerializer,
-    OptimizedResumeListSerializer,
-    OptimizedResumeSerializer,
     ResumeListSerializer,
     ResumeOptimizerRequestSerializer,
     ResumeSerializer,
@@ -253,169 +247,6 @@ class JobDescriptionViewSet(viewsets.ModelViewSet):
         except Exception:
             return Response(
                 {'error': 'Failed to process job description. Please try again.'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-
-class OptimizedResumeViewSet(viewsets.ModelViewSet):
-    serializer_class = OptimizedResumeSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        return OptimizedResume.objects.filter(user=self.request.user)
-
-    def get_serializer_class(self):
-        if self.action == 'list':
-            return OptimizedResumeListSerializer
-        return OptimizedResumeSerializer
-
-    def create(self, request):
-        resume_id = request.data.get('resume_id')
-        jd_id = request.data.get('job_description_id')
-
-        if not resume_id or not jd_id:
-            return Response(
-                {'error': 'Both resume_id and job_description_id are required'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            resume = Resume.objects.get(id=resume_id, user=request.user)
-            jd = JobDescription.objects.get(id=jd_id, user=request.user)
-
-            if not resume.parsed_content:
-                return Response(
-                    {'error': 'Resume has not been parsed yet'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            if not jd.extracted_keywords:
-                return Response(
-                    {'error': 'Job description keywords have not been extracted yet'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-        except Resume.DoesNotExist:
-            return Response({'error': 'Resume not found'}, status=status.HTTP_404_NOT_FOUND)
-        except JobDescription.DoesNotExist:
-            return Response({'error': 'Job description not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        try:
-            score_data = AIService.calculate_ats_score(resume.parsed_content, jd.extracted_keywords)
-            optimized_content = AIService.optimize_resume(resume.parsed_content, jd.content)
-            pdf_file = PDFService.generate_resume_pdf(optimized_content)
-
-            optimized_resume = OptimizedResume.objects.create(
-                user=request.user,
-                original_resume=resume,
-                job_description=jd,
-                optimized_content=optimized_content,
-                ats_score=score_data['score'],
-                matched_keywords=score_data['matched'],
-                missing_keywords=score_data['missing'],
-            )
-
-            optimized_resume.pdf_file.save(
-                f'resume_{optimized_resume.id}.pdf',
-                ContentFile(pdf_file.read()),
-            )
-
-            serializer = self.get_serializer(optimized_resume)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        except ValueError as exc:
-            logger.error(f"Validation error optimizing resume: {str(exc)}")
-            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as exc:
-            logger.error(f"Error optimizing resume: {str(exc)}")
-            return Response(
-                {'error': 'Failed to optimize resume. Please try again.'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-
-class CoverLetterViewSet(viewsets.ModelViewSet):
-    serializer_class = CoverLetterSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        return CoverLetter.objects.filter(user=self.request.user)
-
-    def get_serializer_class(self):
-        if self.action == 'list':
-            return CoverLetterListSerializer
-        return CoverLetterSerializer
-
-    def create(self, request):
-        optimized_resume_id = request.data.get('optimized_resume_id')
-        if not optimized_resume_id:
-            return Response(
-                {'error': 'optimized_resume_id is required'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            optimized_resume = OptimizedResume.objects.get(
-                id=optimized_resume_id,
-                user=request.user,
-            )
-            if not optimized_resume.optimized_content:
-                return Response(
-                    {'error': 'Optimized resume content not available'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-        except OptimizedResume.DoesNotExist:
-            return Response({'error': 'Optimized resume not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        try:
-            profile = Profile.objects.filter(user=request.user).first()
-            user_profile = {
-                'full_name': getattr(profile, 'full_name', '') or request.user.get_full_name() or request.user.username,
-                'email': getattr(profile, 'email', '') or request.user.email,
-                'phone': getattr(profile, 'phone', ''),
-                'location': getattr(profile, 'location', ''),
-                'linkedin_url': getattr(profile, 'linkedin_url', ''),
-                'github_url': getattr(profile, 'github_url', ''),
-            }
-            job_data = {
-                'job_title': optimized_resume.job_description.title,
-                'company_name': 'Company Name',
-                'company_location': 'Company Location',
-            }
-
-            content = AIService.generate_cover_letter(
-                optimized_resume.optimized_content,
-                optimized_resume.job_description.content,
-                optimized_resume.job_description.title,
-            )
-            content = AIService.format_cover_letter_template(
-                user_profile=user_profile,
-                job_data=job_data,
-                body_text=content,
-            )
-            pdf_file = PDFService.generate_cover_letter_pdf(
-                content,
-                '',
-            )
-
-            cover_letter = CoverLetter.objects.create(
-                user=request.user,
-                optimized_resume=optimized_resume,
-                content=content,
-            )
-
-            cover_letter.pdf_file.save(
-                f'cover_letter_{cover_letter.id}.pdf',
-                ContentFile(pdf_file.read()),
-            )
-
-            serializer = self.get_serializer(cover_letter)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        except ValueError as exc:
-            logger.error(f"Validation error generating cover letter: {str(exc)}")
-            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as exc:
-            logger.error(f"Error generating cover letter: {str(exc)}")
-            return Response(
-                {'error': 'Failed to generate cover letter. Please try again.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 

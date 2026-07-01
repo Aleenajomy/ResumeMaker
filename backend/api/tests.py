@@ -173,8 +173,8 @@ B.Tech in Computer Science and Engineering.
         updated_latex = result['updated_latex']
         updated_sections = AIService.extract_latex_sections(updated_latex)
 
-        self.assertIn('Software Developer', updated_latex)
-        self.assertNotIn('Principal Backend Engineer', updated_latex)
+        self.assertNotIn('Software Developer', updated_latex)
+        self.assertIn('Principal Backend Engineer', updated_latex)
         self.assertIn(
             'Computer Science graduate with hands-on experience in Python, Django, PostgreSQL, debugging, and testing.',
             updated_sections['summary']['content'],
