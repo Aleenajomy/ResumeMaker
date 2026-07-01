@@ -1,107 +1,55 @@
-# ResumeMaker
+# 📄 ResumeMaker
 
-ResumeMaker is a full-stack ATS resume assistant that generates a job-specific application package from your base resume.
+ResumeMaker is a full-stack, AI-powered **ATS Resume Optimizer & Application Assistant**. It compiles LaTeX and plain-text resumes tailored to specific job descriptions, generates structured cover letters (PDF/DOCX), drafts custom application emails, and calculates an ATS alignment score using token-level diff visualization.
 
-It produces:
-- Tailored resume PDF
-- Tailored cover letter (PDF + DOCX)
-- Copy-ready professional email template
-- ATS score, matched/missing keywords, and change diff
+---
 
-## What Makes This Version Different
+## ✨ Features
 
-This project runs in **LaTeX-first exact-structure mode** for the primary flow:
-- Input resume for optimization must be a `.tex` file uploaded from Dashboard.
-- AI edits only these sections:
-  - Header headline (line under name, if present)
-  - Summary
-  - Skills
-- Experience, Projects, and Education are intentionally preserved.
+*   **LaTeX-First Exact Structure Mode:** Tailors your resume's **Summary**, **Headline**, and **Skills** sections while preserving the formatting and content of your **Experience**, **Projects**, and **Education** sections.
+*   **Template Injection:** Supports dynamic rendering of LaTeX placeholders (`{{HEADLINE}}`, `{{SUMMARY}}`, `{{SKILLS}}`) on base templates.
+*   **Automated Document Generation:**
+    *   **Tailored Resume:** Optimized LaTeX source code and compiled PDF.
+    *   **Cover Letter:** Fixed-structure professional cover letter exported as PDF and editable Word DOCX.
+    *   **Application Email:** Context-specific email subject and body (tailored for technical and non-technical roles).
+*   **ATS Alignment Analytics:** Extracted keywords, matching percentages, missing terminology, and token-level diff highlighting.
 
-Primary endpoint:
-- `POST /api/resume-optimizer/generate/`
+---
 
-## End-to-End Flow
+## 🛠️ Technology Stack
 
-1. Register/login.
-2. Open **Dashboard** and upload your base `.tex` resume.
-3. Fill profile details (name, contact, links, summary, skills).
-4. Open **Resume Optimizer**.
-5. Add company details + job description (+ optional requirements).
-6. Select the uploaded `.tex` resume.
-7. Generate documents.
-8. Download resume PDF, cover letter PDF/DOCX, and copy/download the generated email.
+| Component | Technologies |
+| :--- | :--- |
+| **Backend** | Python 3.10+, Django 4.2, Django REST Framework, Simple JWT, PostgreSQL, Celery, Redis |
+| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS, Framer Motion |
+| **AI Orchestration** | OpenAI SDK (fully compatible with Google Gemini / Groq base endpoints) |
+| **Document Engines** | `pypdf`, `python-docx`, `reportlab`, LaTeX compilers (`tectonic` / `xelatex` / `pdflatex`) |
 
-## Template Behavior
+---
 
-If your LaTeX resume contains placeholders, backend template injection is applied:
-- `{{HEADLINE}}`
-- `{{SUMMARY}}`
-- `{{SKILLS}}`
+## 🚀 Quick Start & Local Setup
 
-Base template file:
-- `backend/templates/resume_template.tex`
+### Prerequisites
+*   Python 3.10+ & `pip`
+*   Node.js 18+ & `npm`
+*   PostgreSQL running database
+*   OpenAI-compatible API key (e.g. Gemini, Groq, or OpenAI)
+*   A LaTeX compiler installed on your system (e.g., Tectonic or XeLaTeX)
 
-If placeholders are absent, section-based editing is used while preserving layout/commands as much as possible.
+---
 
-## Generated Outputs
+### 1. Backend Setup
 
-### Resume
-- Tailored LaTeX text (`tailored_resume_tex` in response)
-- Resume PDF (`resume_pdf`)
-- ATS score + matched/missing keywords
-- Diff tokens + change summary (`diff_json`, `ai_changes`)
-
-### Cover Letter
-- Tailored body content (professional, 250-350 words target)
-- Wrapped into a fixed professional template
-- Exported as:
-  - PDF (`cover_letter_pdf`) via LaTeX when available
-  - DOCX (`cover_letter_docx`) for editing
-
-### Email Template
-- Returns:
-  - `email_subject`
-  - `email_body`
-- Frontend shows it as a copy-ready block and allows TXT download.
-
-## Tech Stack
-
-Backend:
-- Django 4.2 + Django REST Framework
-- JWT auth (`djangorestframework-simplejwt`)
-- PostgreSQL (`psycopg2-binary`)
-- OpenAI SDK (`openai`) with OpenAI-compatible base URL support (works with Groq-compatible endpoint)
-- PDF/DOCX: `pypdf`, `reportlab`, `python-docx`
-- Celery + Redis configured for async tasks
-
-Frontend:
-- React 18 + TypeScript + Vite
-- React Router
-- Axios
-- Tailwind CSS
-
-System tools:
-- LaTeX compiler (`tectonic`, `xelatex`, or `pdflatex`) for server-side compile
-
-## Prerequisites
-
-- Python 3.10+
-- Node.js 18+ and npm
-- PostgreSQL running locally
-- OpenAI or Groq API key
-- Optional but recommended: Redis (if using Celery workers)
-- Optional but recommended: LaTeX compiler installed for higher-quality PDF output
-
-## Local Setup
-
-### 1) Backend
+Navigate to the `backend` directory, initialize the environment, and run database migrations:
 
 ```bash
+# Navigate to backend
 cd backend
+
+# Create virtual environment
 python -m venv venv
 
-# Activate the virtual environment
+# Activate virtual environment
 # On Windows (PowerShell):
 venv\Scripts\Activate.ps1
 # On Windows (CMD):
@@ -112,97 +60,111 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure settings
-copy .env.example .env  # On Windows, or 'cp .env.example .env' on macOS/Linux
+# Create environment configuration
+copy .env.example .env  # On Windows
+cp .env.example .env    # On macOS/Linux
 
-# Run database setup & server
+# Apply migrations
 python manage.py migrate
+
+# Create admin superuser
 python manage.py createsuperuser
+
+# Start development server
 python manage.py runserver
 ```
 
 > [!TIP]
-> If you run commands without activating the virtual environment in your terminal, always prefix them with the explicit virtual environment path (e.g. `venv\Scripts\python.exe manage.py <command>` on Windows or `venv/bin/python manage.py <command>` on macOS/Linux).
+> If running backend commands without activating the virtual environment in your terminal, use explicit paths:
+> *   **Windows:** `venv\Scripts\python.exe manage.py <command>`
+> *   **macOS/Linux:** `venv/bin/python manage.py <command>`
 
-Backend runs at:
-- `http://localhost:8000`
+Backend runs locally at: `http://localhost:8000`
 
-### 2) Frontend
+---
+
+### 2. Frontend Setup
+
+In a new terminal window, navigate to the `frontend` directory, install node modules, and start the development server:
 
 ```bash
+# Navigate to frontend
 cd frontend
+
+# Install packages
 npm install
+
+# Start Vite server
 npm run dev
 ```
 
-Frontend runs at:
-- `http://localhost:5173`
+Frontend runs locally at: `http://localhost:5173`
 
-## Environment Variables
+---
+
+## 🔑 Environment Variables
 
 ### Backend (`backend/.env`)
-Use `backend/.env.example` and set at minimum:
-- `SECRET_KEY`
-- `DEBUG`
-- `ALLOWED_HOSTS`
-- `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`
-- `OPENAI_API_KEY`
-- `OPENAI_BASE_URL`
-- `AI_MODEL`
-- `CORS_ALLOWED_ORIGINS`
-- `LATEX_STRICT_MODE` (optional; set `True` to disable fallback text PDF when LaTeX compile fails)
+
+| Key | Required | Description / Example |
+| :--- | :---: | :--- |
+| `SECRET_KEY` | Yes | Django secret key for session/token signing. |
+| `DEBUG` | No | `True` for development, `False` for production. |
+| `DB_NAME` | Yes | Name of PostgreSQL database (e.g. `resumemaker_db`). |
+| `DB_USER` | Yes | PostgreSQL username (e.g. `resumemaker_db_user`). |
+| `DB_PASSWORD` | Yes | PostgreSQL password. |
+| `DB_HOST` | Yes | Local `localhost` or Render host (e.g. `*.oregon-postgres.render.com`). |
+| `DB_PORT` | Yes | Database port (typically `5432`). |
+| `OPENAI_API_KEY` | Yes | Your API key for the AI model. |
+| `OPENAI_BASE_URL` | Yes | OpenAI compatible endpoint url (e.g., Gemini's OpenAI base url). |
+| `AI_MODEL` | Yes | Target model name (e.g. `gemini-2.0-flash`). |
+| `CORS_ALLOWED_ORIGINS`| Yes | Allowed origins (e.g., `http://localhost:5173`). |
+| `LATEX_STRICT_MODE` | No | Set `True` to disable text PDF fallbacks if compile fails. |
 
 ### Frontend (`frontend/.env`)
-- `VITE_API_BASE_URL=http://localhost:8000`
+*   `VITE_API_BASE_URL=http://localhost:8000`
 
-## API Route Map (Main)
+---
 
-Auth:
-- `POST /api/auth/register/`
-- `POST /api/token/`
-- `POST /api/token/refresh/`
+## 📡 API Endpoint Reference
 
-Profile:
-- `GET /api/profile/me/`
-- `PUT/PATCH /api/profile/update_me/`
+### Authentication
+*   `POST /api/auth/register/` — Register a new account.
+*   `POST /api/token/` — Log in and obtain JWT.
+*   `POST /api/token/refresh/` — Refresh access token.
+*   `POST /api/auth/password/forgot/` — Request password reset.
+*   `POST /api/auth/password/reset/` — Confirm password reset.
 
-Resume + Optimization:
-- `POST /api/resumes/` (upload `.tex` recommended for current flow)
-- `GET /api/resumes/`
-- `POST /api/resume-optimizer/generate/`
+### Profiles & Certifications
+*   `GET /api/profile/me/` — Retrieve user profile.
+*   `PUT/PATCH /api/profile/update_me/` — Edit profile details.
+*   `GET/POST/PUT/DELETE /api/certifications/` — CRUD user certifications.
 
-Supporting routes:
-- `/api/certifications/`
-- `/api/job-descriptions/`
-- `/api/jobs/`
-- `/api/generated-documents/`
+### Resumes & Generation
+*   `GET/POST/DELETE /api/resumes/` — CRUD uploaded resumes (Upload `.tex` for optimization).
+*   `POST /api/resume-optimizer/generate/` — Generate customized resume, cover letter, and application email payload.
+*   `GET /api/jobs/` — View generation job history.
+*   `GET /api/generated-documents/` — Retrieve previously generated document configurations.
 
-## Troubleshooting
+---
 
-- `No dashboard .tex resume found`
-  - Upload a `.tex` resume in Dashboard before generating.
+## 🔍 Troubleshooting
 
-- `Selected resume is not LaTeX (.tex)`
-  - The optimizer endpoint in current primary flow requires `.tex` input.
+#### ⚠️ "No dashboard .tex resume found"
+Upload your resume in LaTeX (`.tex`) format in the dashboard first. The main optimization flow operates directly on LaTeX structure.
 
-- `Job description must be at least 50 characters`
-  - Provide fuller JD content.
+#### ⚠️ "Job description must be at least 50 characters"
+Ensure the provided job description contains enough textual data for keyword matching and role parsing.
 
-- `No LaTeX compiler found`
-  - Install `tectonic`, `xelatex`, `lualatex`, or `pdflatex`.
-  - On Railway/Render, set `LATEX_COMPILER=xelatex`.
-  - If `LATEX_COMPILER_PATH` is set, make sure it is a valid path inside the Linux container (do not use Windows paths like `C:\...`).
-  - If compile fails, backend falls back to text-based PDF where supported.
+#### ⚠️ "No LaTeX compiler found"
+*   Install a local compiler (`tectonic`, `xelatex`, or `pdflatex`).
+*   On Railway/Render deployments, verify that the package list contains `texlive-xetex` and `texlive-latex-extra`.
+*   Set the `LATEX_COMPILER=xelatex` environment variable.
 
-- `LaTeX works locally but fails on Railway`
-  - Confirm `nixpacks.toml` includes `aptPkgs = ["texlive-xetex", "texlive-fonts-recommended", "texlive-latex-extra"]`.
-  - In Railway variables:
-    - `LATEX_COMPILER=xelatex`
-    - `LATEX_COMPILER_PATH=` (empty, unless you provide a valid Linux path)
-    - `LATEX_STRICT_MODE=True` (optional; fail fast instead of fallback PDF)
-  - Redeploy and check logs for `Using LaTeX compiler: ...`.
-
-- `HTTP 500 (Internal Server Error) after deploying to Render`
-  - **Environment Variables**: Make sure all environment variables from `backend/.env` (such as `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, and `SECRET_KEY`) are set in the Render Web Service **Environment** tab.
-  - **Database Host**: Make sure `DB_HOST` on the Render web service uses the **Internal Hostname** (e.g., `dpg-d92j3dfaqgkc...`). For local development, make sure `DB_HOST` uses the **External Hostname** (e.g., `dpg-d92j3dfaqgkc...oregon-postgres.render.com`).
-  - **Unapplied Migrations**: If tables are missing, run `venv\Scripts\python.exe manage.py migrate` locally against the Render database before starting the application.
+#### ⚠️ "HTTP 500 (Internal Server Error) after deploying to Render"
+*   **Environment Variables:** Verify that all environment variables from `backend/.env` (such as `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, and `SECRET_KEY`) are set in the Render Web Service **Environment** tab.
+*   **Database Host:** Ensure `DB_HOST` is set to the **Internal Hostname** inside Render (`dpg-*`) and the **External Hostname** (`dpg-*.oregon-postgres.render.com`) for local connections.
+*   **Database Migrations:** Ensure migrations are applied to the active database using:
+    ```bash
+    venv\Scripts\python.exe manage.py migrate
+    ```
